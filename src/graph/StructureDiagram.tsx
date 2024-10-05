@@ -1,9 +1,10 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Command } from "@tauri-apps/api/shell";
 import Statics from "../Statics";
 
 function StructureDiagram() {
     const projectPath = localStorage.getItem(Statics.PROJECT_PATH);
+    const [D, setD] = useState("")
 
     const generateTags = async () => {
         if (projectPath) {
@@ -15,12 +16,12 @@ function StructureDiagram() {
                 const output = await command.execute();
 
                 if (output.code === 0) {
-                    console.log("Tags file generated successfully!");
+                    setD("Tags file generated successfully!");
                 } else {
-                    console.error(`Failed to generate tags. Error: ${output.stderr}`);
+                    setD(`Failed to generate tags. Error: ${output.stderr}`);
                 }
             } catch (error) {
-                console.error("Failed to execute ctags command:", error);
+                setD(`Failed to execute ctags command: ${error}`);
             }
         }
     };
@@ -29,6 +30,7 @@ function StructureDiagram() {
         <div>
             <h1>{projectPath}</h1>
             <button onClick={generateTags}>Generate tags</button>
+            <h1>{D}</h1>
         </div>
     );
 }
