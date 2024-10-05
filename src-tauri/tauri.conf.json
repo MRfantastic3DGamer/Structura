@@ -15,13 +15,23 @@
       "all": false,
       "shell": {
         "all": true,
-        "open": true
+        "open": true,
+        "scope": [
+          {
+            "name": "ctags",
+            "cmd": "ctags",
+            "args": true
+          }
+        ]
       },
       "dialog": {
         "open": true
       },
       "fs": {
         "readDir": true
+      },
+      "path": {
+        "all": true
       }
     },
     "windows": [
