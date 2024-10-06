@@ -45,19 +45,48 @@ fn walk_project(project_path: &str) -> io::Result<Vec<TagEntry>> {
     Ok(tags)
 }
 
+// region output
+fn emit_project_structure() {}
+fn emit_project_data_flow() {}
+// endregion
+
+// region requests
 #[tauri::command]
 fn request_project_structure(project_path: &str) {
     let _ = walk_project(project_path);
 }
+#[tauri::command]
+fn save_project_structure(project_path: &str) {
+}
+#[tauri::command]
+fn del_project_structure(project_path: &str) {
+}
+
 
 #[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
+fn request_project_data_flow(project_path: &str) {
+    let _ = walk_project(project_path);
 }
+#[tauri::command]
+fn save_project_data_flow(project_path: &str) {
+}
+#[tauri::command]
+fn del_project_data_flow(project_path: &str) {
+}
+// endregion interface
+
 
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![greet, request_project_structure])
+        .invoke_handler(tauri::generate_handler![
+            request_project_structure,
+            save_project_structure,
+            del_project_structure,
+
+            request_project_data_flow,
+            save_project_data_flow,
+            del_project_data_flow
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
