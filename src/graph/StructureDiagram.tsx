@@ -10,7 +10,7 @@ function StructureDiagram() {
         if (projectPath) {
             try {
                 // Create a new Command instance
-                const command = new Command("ctags", ["-R", "-f", "./tags", projectPath]);
+                const command = new Command("ctags", ["-R", "-f", "./data/tags", projectPath]);
 
                 // Execute the command and capture the output
                 const output = await command.execute();
