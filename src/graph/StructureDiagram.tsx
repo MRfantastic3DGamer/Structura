@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Command } from "@tauri-apps/api/shell";
 import Statics from "../Statics";
+import { invoke } from '@tauri-apps/api/tauri'
 
 function StructureDiagram() {
     const projectPath = localStorage.getItem(Statics.PROJECT_PATH);
@@ -10,13 +11,15 @@ function StructureDiagram() {
         if (projectPath) {
             try {
                 // Create a new Command instance
-                const command = new Command("ctags", ["-R", "-f", "./data/tags", projectPath]);
-
+                const command = new Command("ctags", ["-R", "--recurse=yes", "-f tags", projectPath]);
                 // Execute the command and capture the output
                 const output = await command.execute();
 
                 if (output.code === 0) {
                     setD("Tags file generated successfully!");
+
+                    // Use the imported `invoke` function
+                    await invoke('request_project_structure', { tagsPath: "tags" });
                 } else {
                     setD(`Failed to generate tags. Error: ${output.stderr}`);
                 }
