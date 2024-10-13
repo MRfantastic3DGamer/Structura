@@ -1,57 +1,11 @@
-use std::fs::File;
-use std::io::{self, BufRead};
-use std::path::Path;
+use tauri::api::file;
+
+mod tag_entry;
+
+use tag_entry::TagEntry;
+
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #[cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-#[derive(Debug)]
-struct TagEntry {
-    tag_name: String,
-    file_name: String,
-    reg_ex: String,
-    tag: String,
-    context: String,
-}
-
-fn get_tags_data(tags_path: String) -> io::Result<Vec<TagEntry>> {
-    let mut tags = Vec::new();
-
-    // Open the file
-    let path = Path::new(&tags_path);
-    let file = File::open(path)?;
-
-    // Read the file line by line
-    let reader = io::BufReader::new(file);
-    for line in reader.lines() {
-        let line = line?; // Handle potential I/O errors
-        if !line.starts_with("!") {
-            // Skip comment lines in the tags file
-            let parts: Vec<&str> = line.split('\t').collect(); // Split the line by tabs
-            if parts.len() >= 3 {
-                let tag_name = parts[0].to_string();
-                let file_name = parts[1].to_string();
-                let reg_ex = parts[2].to_string();
-                let tag = if parts.len() >= 4 {
-                    parts[3].to_string()
-                } else {
-                    "".to_string()
-                };
-                let context = if parts.len() >= 5 {
-                    parts[4].to_string()
-                } else {
-                    "".to_string()
-                };
-                tags.push(TagEntry {
-                    tag_name: tag_name,
-                    file_name: file_name,
-                    reg_ex: reg_ex,
-                    tag: tag,
-                    context: context,
-                });
-            }
-        }
-    }
-    Ok(tags)
-}
 
 // region output
 fn emit_project_structure() {}
@@ -61,16 +15,13 @@ fn emit_project_data_flow() {}
 // region requests
 #[tauri::command]
 fn request_project_structure(tags_path: String) {
-    let tags_result = get_tags_data(tags_path);
-    let found_files: Vec<String> = match tags_result {
-        Ok(tags) => tags
-            .into_iter()
-            .map(|tag| tag.tag_name)
-            .collect::<Vec<String>>(),
-        Err(e) => Vec::new(),
+    let tags_result = match tag_entry::get_tags_data(tags_path) {
+        Ok(res) => res,
+        Err(_) => Vec::new(),
     };
+    // let found_files: HashSet<String> = tag_entry::get_all_files(&tags_result);
 
-    print!("{}", found_files.join("\n"));
+    let mut all_imports = tag_entry::get_all_imports(&tags_result);
 }
 #[tauri::command]
 fn save_project_structure(tags_path: &str) {}
