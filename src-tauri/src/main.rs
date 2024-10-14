@@ -19,9 +19,7 @@ fn request_project_structure(tags_path: String) {
         Ok(res) => res,
         Err(_) => Vec::new(),
     };
-    // let found_files: HashSet<String> = tag_entry::get_all_files(&tags_result);
-
-    let mut all_imports = tag_entry::get_all_imports(&tags_result);
+    tag_entry::get_all_data(&tags_result);
 }
 #[tauri::command]
 fn save_project_structure(tags_path: &str) {}

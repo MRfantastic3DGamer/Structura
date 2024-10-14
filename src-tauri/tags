@@ -7,8 +7,8 @@
 Alive	D:\Development\Projects\MapMyProject\Test\TestFiles\src\Alive.cpp	/^class Alive {$/;"	c	file:
 Animal	D:\Development\Projects\MapMyProject\Test\TestFiles\src\Animal.cpp	/^class Animal {$/;"	c	file:
 Counter	D:\Development\Projects\MapMyProject\Test\TestFiles\src\Counter.cpp	/^    Counter(int value) {$/;"	f	class:Counter
-Counter	D:\Development\Projects\MapMyProject\Test\TestFiles\src\Counter.cpp	/^Counter::Counter(int value)$/;"	f	class:Counter
-Counter	D:\Development\Projects\MapMyProject\Test\TestFiles\src\Counter.cpp	/^class Counter$/;"	c	file:
+Counter	D:\Development\Projects\MapMyProject\Test\TestFiles\src\Counter.cpp	/^Counter::Counter(int value) {$/;"	f	class:Counter
+Counter	D:\Development\Projects\MapMyProject\Test\TestFiles\src\Counter.cpp	/^class Counter {$/;"	c	file:
 Human	D:\Development\Projects\MapMyProject\Test\TestFiles\src\animals\Human.cpp	/^Human::Human() : Mammal(10) {}$/;"	f	class:Human
 Human	D:\Development\Projects\MapMyProject\Test\TestFiles\src\animals\Human.cpp	/^class Human: public Mammal {$/;"	c	file:
 Mammal	D:\Development\Projects\MapMyProject\Test\TestFiles\src\Mammal.cpp	/^    Mammal(int year) : birthYear(year), age(Counter(0)) {}$/;"	f	class:Mammal
@@ -23,5 +23,5 @@ health	D:\Development\Projects\MapMyProject\Test\TestFiles\src\Alive.cpp	/^    i
 main	D:\Development\Projects\MapMyProject\Test\TestFiles\src\main.cpp	/^int main() {$/;"	f
 mam	D:\Development\Projects\MapMyProject\Test\TestFiles\src\Mammal.cpp	/^    int mam;$/;"	m	class:Mammal	file:
 max	D:\Development\Projects\MapMyProject\Test\TestFiles\src\Utilities.cpp	/^T max(T a, T b) {$/;"	f
-~Counter	D:\Development\Projects\MapMyProject\Test\TestFiles\src\Counter.cpp	/^Counter::~Counter()$/;"	f	class:Counter
+~Counter	D:\Development\Projects\MapMyProject\Test\TestFiles\src\Counter.cpp	/^Counter::~Counter() {$/;"	f	class:Counter
 ~Human	D:\Development\Projects\MapMyProject\Test\TestFiles\src\animals\Human.cpp	/^Human::~Human() {}/;"	f	class:Human

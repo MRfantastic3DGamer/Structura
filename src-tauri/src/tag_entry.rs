@@ -5,6 +5,9 @@ use std::{
     path::Path,
 };
 
+use file_walk::file_walk;
+use tauri::api::file;
+
 mod file_walk;
 mod imports_checking;
 
@@ -66,7 +69,12 @@ pub fn get_tags_data(tags_path: String) -> io::Result<Vec<TagEntry>> {
             if parts.len() >= 3 {
                 let tag_name = parts[0].to_string();
                 let file_name = parts[1].to_string();
-                let reg_ex = parts[2].to_string();
+                let reg_ex = parts[2]
+                    .to_string()
+                    .get(2..parts[2].to_string().len() - 4)
+                    .unwrap()
+                    .trim()
+                    .to_string();
                 let tag = if parts.len() >= 4 {
                     parts[3].to_string()
                 } else {
@@ -96,22 +104,44 @@ pub fn get_all_files(tags: &Vec<TagEntry>) -> HashSet<&String> {
         .collect::<HashSet<&String>>()
 }
 
-pub fn get_all_imports(tags: &Vec<TagEntry>) -> HashMap<&String, Vec<String>> {
-    let found_files: HashSet<&String> = get_all_files(tags);
-
+pub fn get_all_imports<'a>(all_files: &'a HashSet<&'a String>) -> HashMap<&'a String, Vec<String>> {
     let mut all_imports = HashMap::new();
 
-    for file in found_files {
+    for file in all_files {
         println!("{}", file);
-        match imports_checking::get_imported_files(&file) {
+        match imports_checking::get_imported_files(file) {
             Ok(i) => {
-                all_imports.insert(file, i);
+                all_imports.insert(*file, i); // Insert the file reference and the imports vector
             }
             Err(e) => {
-                print!("error in imports for {} => {}", file, e);
+                println!("error in imports for {} => {}", file, e);
             }
         }
     }
 
     all_imports
+}
+
+fn get_all_Scopes<'a>(
+    all_files: &'a HashSet<&'a String>,
+    all_tags: &Vec<TagEntry>,
+) -> HashMap<&'a String, Vec<ScopeEntry>> {
+    let mut all_scopes = HashMap::new();
+
+    for file in all_files {
+        let mut tags: Vec<&TagEntry> = Vec::new();
+        for t in all_tags {
+            if t.file_name == **file {
+                tags.push(t.clone());
+            }
+        }
+        all_scopes.insert(*file, file_walk(file, &tags));
+    }
+    all_scopes
+}
+
+pub fn get_all_data(all_tags: &Vec<TagEntry>) {
+    let all_files = get_all_files(all_tags);
+    let all_imports = get_all_imports(&all_files);
+    let all_scopes = get_all_Scopes(&all_files, &all_tags);
 }

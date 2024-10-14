@@ -1,20 +1,26 @@
 use std::{
     fs::File,
-    io::{self, BufRead},
+    io::{self, BufRead, Seek, SeekFrom},
     path::Path,
 };
 
+use tauri::GlobPattern;
+
 use super::{ScopeEntry, TagEntry};
 
-pub fn file_walk(file_path: &String, file_tags: &Vec<TagEntry>) -> Vec<ScopeEntry> {
-    indentation_walk(file_path, file_tags)
+pub fn file_walk(file_path: &String, file_tags: &Vec<&TagEntry>) -> Vec<ScopeEntry> {
+    let res = indentation_walk(file_path, file_tags);
+    // for se in &res {
+    //     println!("l-{}, c-{}", se.start_line, se.start_col);
+    // }
+    res
 }
 
-fn indentation_walk(file_path: &String, file_tags: &Vec<TagEntry>) -> Vec<ScopeEntry> {
+fn indentation_walk(file_path: &String, tags: &Vec<&TagEntry>) -> Vec<ScopeEntry> {
     // Open the file
     let path = Path::new(file_path);
     let file_r = File::open(path);
-    let file: File;
+    let mut file: File;
     match file_r {
         Ok(f) => {
             file = f;
@@ -25,15 +31,13 @@ fn indentation_walk(file_path: &String, file_tags: &Vec<TagEntry>) -> Vec<ScopeE
         }
     }
 
-    // Read the file line by line
-    let reader = io::BufReader::new(file);
-
     let mut scope_entries: Vec<ScopeEntry> = Vec::new();
     let mut scope_stack: Vec<usize> = Vec::new(); // Stack to track current open scope indexes
     let mut line_num: u128 = 0;
 
-    // Traverse through the lines
-    for (line_index, line) in reader.lines().enumerate() {
+    // creating scope_entries
+    let buf_reader1 = io::BufReader::new(&file);
+    for (line_index, line) in buf_reader1.lines().enumerate() {
         let line_content = line.unwrap();
         let mut col_num: u128 = 0;
         line_num = line_index as u128 + 1; // Line numbers start from 1
@@ -84,6 +88,24 @@ fn indentation_walk(file_path: &String, file_tags: &Vec<TagEntry>) -> Vec<ScopeE
                         line_num, col_num
                     );
                 }
+            }
+        }
+    }
+
+    println!("tags to be found in {}", &file_path);
+    for t in tags {
+        println!("\t{} ", t.reg_ex);
+    }
+
+    // creating object and fn entries
+    println!("searching in file {}", file_path);
+    file.seek(SeekFrom::Start(0));
+    let buf_reader2 = io::BufReader::new(&file);
+    for (line_index, line) in buf_reader2.lines().enumerate() {
+        let line_content = line.unwrap();
+        for t in tags {
+            if line_content.find(&t.reg_ex).is_some() {
+                println!("\tfound->{} at {}", t.tag_name, line_index);
             }
         }
     }
