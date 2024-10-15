@@ -6,7 +6,6 @@ use std::{
 };
 
 use file_walk::file_walk;
-use tauri::api::file;
 
 mod file_walk;
 mod imports_checking;
@@ -33,11 +32,13 @@ pub struct ScopeEntry {
 
 pub struct ClassEntry {
     pub name: String,
+    pub parent_scope: u128,
     pub class_scope: u128,
 }
 
 pub struct InterfaceEntry {
     pub name: String,
+    pub parent_scope: u128,
     pub class_scope: u128,
 }
 
@@ -111,7 +112,7 @@ pub fn get_all_imports<'a>(all_files: &'a HashSet<&'a String>) -> HashMap<&'a St
         println!("{}", file);
         match imports_checking::get_imported_files(file) {
             Ok(i) => {
-                all_imports.insert(*file, i); // Insert the file reference and the imports vector
+                all_imports.insert(*file, i);
             }
             Err(e) => {
                 println!("error in imports for {} => {}", file, e);
@@ -125,23 +126,39 @@ pub fn get_all_imports<'a>(all_files: &'a HashSet<&'a String>) -> HashMap<&'a St
 fn get_all_Scopes<'a>(
     all_files: &'a HashSet<&'a String>,
     all_tags: &Vec<TagEntry>,
-) -> HashMap<&'a String, Vec<ScopeEntry>> {
-    let mut all_scopes = HashMap::new();
+) -> HashMap<
+    &'a String,
+    (
+        Vec<ScopeEntry>,
+        Vec<ClassEntry>,
+        Vec<FunctionEntry>,
+        Vec<ObjectEntry>,
+    ),
+> {
+    let mut all_data = HashMap::new();
 
     for file in all_files {
         let mut tags: Vec<&TagEntry> = Vec::new();
         for t in all_tags {
             if t.file_name == **file {
-                tags.push(t.clone());
+                tags.push(t);
             }
         }
-        all_scopes.insert(*file, file_walk(file, &tags));
+        all_data.insert(*file, file_walk(file, &tags));
     }
-    all_scopes
+    all_data
 }
 
 pub fn get_all_data(all_tags: &Vec<TagEntry>) {
     let all_files = get_all_files(all_tags);
     let all_imports = get_all_imports(&all_files);
-    let all_scopes = get_all_Scopes(&all_files, &all_tags);
+    let all_scopes: HashMap<
+        &String,
+        (
+            Vec<ScopeEntry>,
+            Vec<ClassEntry>,
+            Vec<FunctionEntry>,
+            Vec<ObjectEntry>,
+        ),
+    > = get_all_Scopes(&all_files, &all_tags);
 }
