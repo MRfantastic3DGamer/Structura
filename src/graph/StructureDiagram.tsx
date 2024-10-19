@@ -1,11 +1,26 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Command } from "@tauri-apps/api/shell";
 import Statics from "../Statics";
-import { invoke } from '@tauri-apps/api/tauri'
+import { invoke } from '@tauri-apps/api/tauri';
+import { listen } from '@tauri-apps/api/event';
 
 function StructureDiagram() {
     const projectPath = localStorage.getItem(Statics.PROJECT_PATH);
-    const [D, setD] = useState("")
+    const [D, setD] = useState("");
+    const [progress, setProgress] = useState(0); // State to track progress
+
+    useEffect(() => {
+        // Listen to the progress event emitted from the backend
+        const unlisten = listen('progress', (event) => {
+            // event.payload will be the progress value emitted from the backend
+            setProgress(event.payload as number);
+        });
+
+        // Clean up the event listener on component unmount
+        return () => {
+            unlisten.then((f) => f());
+        };
+    }, []);
 
     const generateTags = async () => {
         if (projectPath) {
@@ -34,8 +49,10 @@ function StructureDiagram() {
             <h1>{projectPath}</h1>
             <button onClick={generateTags}>Generate tags</button>
             <h1>{D}</h1>
+
+            {/* Display progress */}
+            <p>Progress: {progress}%</p>
         </div>
     );
 }
-
 export default StructureDiagram;

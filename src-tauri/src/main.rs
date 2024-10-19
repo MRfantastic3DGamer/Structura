@@ -1,4 +1,4 @@
-use tauri::api::file;
+use tauri::{api::file, window, Manager, Runtime};
 
 mod tag_entry;
 
@@ -6,6 +6,22 @@ use tag_entry::TagEntry;
 
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #[cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+//
+// region payloads
+#[derive(Clone, serde::Serialize)]
+struct ProgressPayload {
+    t: String,
+    key: String,
+    amount: f64,
+}
+
+#[derive(Clone, serde::Serialize)]
+struct MessagePayload {
+    t: String,
+    value: String,
+}
+
+// endregion
 
 // region output
 fn emit_project_structure() {}
@@ -14,12 +30,19 @@ fn emit_project_data_flow() {}
 
 // region requests
 #[tauri::command]
-fn request_project_structure(tags_path: String) {
+async fn request_project_structure<R: Runtime>(tags_path: String, window: tauri::Window<R>) {
+    let emit_process_progress_status = |progress: u8| {
+        println!("emitted progress as {}", progress);
+        window.emit("progress", progress).unwrap();
+    };
+
     let tags_result = match tag_entry::get_tags_data(tags_path) {
         Ok(res) => res,
         Err(_) => Vec::new(),
     };
-    tag_entry::get_all_data(&tags_result);
+    let all_files = tag_entry::get_all_files(&tags_result);
+    let data =
+        tag_entry::get_all_data(&all_files, &tags_result, emit_process_progress_status).await;
 }
 #[tauri::command]
 fn save_project_structure(tags_path: &str) {}
