@@ -1,12 +1,13 @@
 mod file_walk;
-mod imports_checking;
 mod serialization;
 
 use std::{
+    cell::RefCell,
     collections::{HashMap, HashSet},
     fs::File,
     io::{self, BufRead},
     path::Path,
+    rc::{Rc, Weak},
     sync::Arc,
 };
 
@@ -64,7 +65,16 @@ pub struct ObjectEntry {
     pub name: String,
     #[serde(serialize_with = "u128_as_string")]
     pub parent_scope: u128,
+    // default value
 }
+
+struct DataNode<'n> {
+    pub name: String,
+    pub parent: Option<&'n DataNode<'n>>,
+    pub children: Vec<&'n DataNode<'n>>,
+}
+
+fn get_key(e: &ClassEntry, scopes: &Vec<ScopeEntry>) {}
 
 pub fn get_tags_data(tags_path: String) -> io::Result<Vec<TagEntry>> {
     let mut tags = Vec::new();
@@ -113,30 +123,15 @@ pub fn get_tags_data(tags_path: String) -> io::Result<Vec<TagEntry>> {
 }
 
 pub fn get_all_files<'a>(tags: &'a Vec<TagEntry>) -> HashSet<&'a String> {
-    tags.into_iter()
+    let mut files = tags
+        .into_iter()
         .map(|tag| &tag.file_name)
-        .collect::<HashSet<&String>>()
+        .collect::<Vec<&String>>();
+    files.sort();
+    HashSet::from_iter(files.into_iter())
 }
 
-pub fn get_all_imports<'a>(all_files: &'a HashSet<&'a String>) -> HashMap<&'a String, Vec<String>> {
-    let mut all_imports = HashMap::new();
-
-    for file in all_files {
-        println!("{}", file);
-        match imports_checking::get_imported_files(file) {
-            Ok(i) => {
-                all_imports.insert(*file, i);
-            }
-            Err(e) => {
-                println!("error in imports for {} => {}", file, e);
-            }
-        }
-    }
-
-    all_imports
-}
-
-async fn get_all_Scopes<'a>(
+pub async fn get_all_hard_data<'a>(
     all_files: &'a HashSet<&'a String>,
     all_tags: &'a Vec<TagEntry>,
     progress_indication: impl Fn(u8),
@@ -152,17 +147,17 @@ async fn get_all_Scopes<'a>(
     let mut all_data = HashMap::new();
     let total_files = all_files.len(); // Get the total number of files only once
 
-    for (i, file) in all_files.iter().enumerate() {
+    for (i, file_path) in all_files.iter().enumerate() {
         let mut tags: Vec<&TagEntry> = Vec::new();
         for t in all_tags {
-            if t.file_name == **file {
+            if t.file_name == **file_path {
                 tags.push(t);
             }
         }
 
         // Process the file and collect the data
-        let file_data = file_walk(file, &tags);
-        all_data.insert(file.clone(), file_data);
+        let file_data = file_walk(file_path, &tags);
+        all_data.insert(file_path.clone(), file_data);
 
         // Calculate progress and send it
         let progress = ((i + 1) as f32 / total_files as f32) * 100.0; // Use floating-point division
@@ -172,28 +167,24 @@ async fn get_all_Scopes<'a>(
     all_data
 }
 
-pub async fn get_all_data<'f>(
-    all_files: &'f HashSet<&'f String>,
-    all_tags: &'f Vec<TagEntry>,
-    progress_indication: impl Fn(u8),
-) -> HashMap<
-    &'f String,
-    (
+impl<'n> DataNode<'n> {
+    // Constructor for new nodes without a parent (like a root node)
+    fn new(name: String) -> Rc<RefCell<Self>> {
+        Rc::new(RefCell::new(DataNode {
+            name,
+            parent: None,
+            children: Vec::new(),
+        }))
+    }
+}
+
+pub async fn format_hard_data(
+    file_path: &String,
+    hard_data: (
         Vec<ScopeEntry>,
         Vec<ClassEntry>,
         Vec<FunctionEntry>,
         Vec<ObjectEntry>,
     ),
-> {
-    let all_imports = get_all_imports(&all_files);
-    let all_data: HashMap<
-        &String,
-        (
-            Vec<ScopeEntry>,
-            Vec<ClassEntry>,
-            Vec<FunctionEntry>,
-            Vec<ObjectEntry>,
-        ),
-    > = get_all_Scopes(&all_files, all_tags, progress_indication).await;
-    all_data
+) {
 }

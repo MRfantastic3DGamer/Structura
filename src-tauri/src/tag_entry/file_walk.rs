@@ -2,6 +2,7 @@ use std::{
     fs::File,
     io::{self, BufRead, Seek, SeekFrom},
     path::Path,
+    u128,
 };
 
 use tauri::GlobPattern;
@@ -51,6 +52,19 @@ fn indentation_walk(
     let mut scope_stack: Vec<usize> = Vec::new(); // Stack to track current open scope indexes
     let mut line_num: u128 = 0;
     let mut scope_scout_tag = '_';
+
+    // region create file level scope
+    scope_entries.push(ScopeEntry {
+        file_name: file_path.clone(),
+        start_line: 0,
+        start_col: 0,
+        end_line: 0,
+        end_col: 0,
+        parent_scope: u128::MAX,
+        children_scop: Vec::new(),
+    });
+    scope_stack.push(0);
+    // endregion
 
     let buf_reader = io::BufReader::new(&file);
     for (line_index, line) in buf_reader.lines().enumerate() {
@@ -179,6 +193,12 @@ fn indentation_walk(
                 }
             }
         }
+    }
+
+    // update the ending values of class scope
+    if let Some(scope_idx) = scope_stack.pop() {
+        scope_entries[scope_idx].end_line = line_num;
+        scope_entries[scope_idx].end_col = u128::MAX;
     }
 
     println!("in {}", &file_path);

@@ -1,6 +1,13 @@
-use std::path::Path;
+use std::fs;
+use std::path::{Path, PathBuf};
 
-pub fn get_imported_files(file_path: &str) -> Result<Vec<String>, String> {
+pub enum Import {
+    File(String),    // if a file is imported
+    Module(String),  // if a module is imported
+    Package(String), // if a pre built package is imported
+}
+
+pub fn get_imported_files(project_path: &String, file_path: &str) -> Result<Vec<Import>, String> {
     // Determine the file extension
     let path = Path::new(file_path);
     let extension = match path.extension() {
@@ -25,31 +32,47 @@ pub fn get_imported_files(file_path: &str) -> Result<Vec<String>, String> {
         _ => return Err("Unsupported or unknown file type.".to_string()),
     }
     .into_iter()
-    .map(|f| resolve_import_paths(file_path, f))
-    .collect::<Vec<String>>();
+    .map(|f| resolve_import_paths(project_path, file_path, &f))
+    .collect::<Vec<Import>>();
 
     Ok(imported_files)
 }
 
-fn resolve_import_paths(base_file_path: &str, import: String) -> String {
+fn resolve_import_paths(project_path: &String, file_path: &str, import: &String) -> Import {
     // Get the base file's parent directory
-    let base_path = Path::new(base_file_path)
+    let file_relative_path = Path::new(file_path)
         .parent()
-        .unwrap_or_else(|| Path::new(""));
+        .unwrap_or_else(|| Path::new(""))
+        .join(import);
 
-    // Join the base path with the relative import path
-    let mut full_path = base_path.join(import);
+    if file_relative_path.exists() {
+        return format_path(file_relative_path);
+    }
 
-    // Normalize the path, resolving `..` and `.` components
-    full_path = full_path.canonicalize().unwrap_or(full_path);
+    let project_relative_path = Path::new(project_path)
+        .parent()
+        .unwrap_or_else(|| Path::new(""))
+        .join(import);
+    if project_relative_path.exists() {
+        return format_path(project_relative_path);
+    }
 
-    // Convert the path to a string and replace backslashes with forward slashes
-    let full_path_str = full_path.to_string_lossy().to_string();
+    return Import::Package(import.clone());
+}
 
-    // Ensure the path only uses one type of separator (here we choose '/')
-    let normalized_path = full_path_str.replace("\\", "/");
+fn format_path(path: PathBuf) -> Import {
+    let path_str = path
+        .canonicalize()
+        .unwrap_or(path.to_path_buf())
+        .to_string_lossy()
+        .to_string();
 
-    normalized_path
+    Import::File(
+        path_str
+            .strip_prefix("\\\\?\\")
+            .unwrap_or(&path_str)
+            .to_string(),
+    )
 }
 
 // Function to extract imports for Rust

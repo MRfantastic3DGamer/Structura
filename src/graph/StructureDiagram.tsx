@@ -34,7 +34,7 @@ function StructureDiagram() {
                     setD("Tags file generated successfully!");
 
                     // Use the imported `invoke` function
-                    await invoke('request_project_structure', { tagsPath: "tags" });
+                    await invoke('request_project_structure', { projectPath: projectPath, tagsPath: "tags" });
                 } else {
                     setD(`Failed to generate tags. Error: ${output.stderr}`);
                 }
