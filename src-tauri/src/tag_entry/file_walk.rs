@@ -18,11 +18,12 @@ pub fn file_walk(
     Vec<FunctionEntry>,
     Vec<ObjectEntry>,
 ) {
-    let res = indentation_walk(file_path, file_tags);
+    let res = brackets_walk(file_path, file_tags);
     res
 }
 
-fn indentation_walk(
+// TODO: note the section after = as its own scope
+fn brackets_walk(
     file_path: &String,
     tags: &Vec<&TagEntry>,
 ) -> (
@@ -79,14 +80,14 @@ fn indentation_walk(
                         let new_class_entry = ClassEntry {
                             name: t.tag_name.clone(),
                             class_scope: if let Some(&parent_idx) = scope_stack.last() {
-                                parent_idx as u128
+                                parent_idx
                             } else {
-                                u128::MAX // Indicate no parent (root scope)
+                                usize::MAX // Indicate no parent (root scope)
                             },
                             parent_scope: if let Some(&parent_idx) = scope_stack.last() {
-                                parent_idx as u128
+                                parent_idx
                             } else {
-                                u128::MAX // Indicate no parent (root scope)
+                                usize::MAX // Indicate no parent (root scope)
                             },
                         };
 
@@ -97,14 +98,14 @@ fn indentation_walk(
                         let new_fn_entry = FunctionEntry {
                             name: t.tag_name.clone(),
                             parent_scope: if let Some(&parent_idx) = scope_stack.last() {
-                                parent_idx as u128
+                                parent_idx
                             } else {
-                                u128::MAX // Indicate no parent (root scope)
+                                usize::MAX // Indicate no parent (root scope)
                             },
                             function_scope: if let Some(&parent_idx) = scope_stack.last() {
-                                parent_idx as u128
+                                parent_idx
                             } else {
-                                u128::MAX // Indicate no parent (root scope)
+                                usize::MAX // Indicate no parent (root scope)
                             },
                         };
                         function_entries.push(new_fn_entry);
@@ -114,13 +115,13 @@ fn indentation_walk(
                         let new_obj_entry = ObjectEntry {
                             name: t.tag_name.clone(),
                             parent_scope: if let Some(&parent_idx) = scope_stack.last() {
-                                parent_idx as u128
+                                parent_idx
                             } else {
-                                u128::MAX // Indicate no parent (root scope)
+                                usize::MAX // Indicate no parent (root scope)
                             },
                         };
                         object_entries.push(new_obj_entry);
-                        // scope_scout_tag = 'm'; TODO:
+                        // TODO: scope_scout_tag = 'm';
                     }
                     _ => {}
                 }
@@ -165,12 +166,12 @@ fn indentation_walk(
                 match scope_scout_tag {
                     'c' => {
                         if let Some(class_entry) = class_entries.last_mut() {
-                            class_entry.class_scope = new_scope_idx as u128
+                            class_entry.class_scope = new_scope_idx
                         }
                     }
                     'f' => {
                         if let Some(function_entry) = function_entries.last_mut() {
-                            function_entry.function_scope = new_scope_idx as u128
+                            function_entry.function_scope = new_scope_idx
                         }
                     }
                     _ => {}
@@ -237,4 +238,4 @@ fn indentation_walk(
     )
 }
 
-fn brackets_walk() {}
+fn indentation_walk() {}

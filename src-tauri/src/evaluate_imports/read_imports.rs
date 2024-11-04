@@ -2,9 +2,12 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 pub enum Import {
-    File(String),    // if a file is imported
-    Module(String),  // if a module is imported
-    Package(String), // if a pre built package is imported
+    ///     if a file is imported
+    File(String),
+    ///     if a module is imported
+    Module(String),
+    ///     if a pre built package is imported
+    Package(String),
 }
 
 pub fn get_imported_files(project_path: &String, file_path: &str) -> Result<Vec<Import>, String> {

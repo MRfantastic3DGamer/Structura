@@ -74,10 +74,12 @@ async fn create_project_structure<R: Runtime>(
         Ok(res) => res,
         Err(_) => Vec::new(),
     };
+    // F
     let all_files = tag_entry::get_all_files(&tags_result);
     let hard_data =
         tag_entry::get_all_hard_data(&all_files, &tags_result, emit_process_progress_status).await;
-    let imported_tags = evaluate_imports::evaluate_all_available_tags(&project_path, &all_files);
+    let imported_tags =
+        evaluate_imports::evaluate_all_available_tags(&project_path, &all_files, hard_data);
 }
 
 fn main() {

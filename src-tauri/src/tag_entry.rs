@@ -25,7 +25,7 @@ pub struct TagEntry {
     pub context: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 pub struct ScopeEntry {
     pub file_name: String,
     #[serde(serialize_with = "u128_as_string")]
@@ -42,30 +42,31 @@ pub struct ScopeEntry {
     pub children_scop: Vec<u128>,
 }
 
-#[derive(Serialize)]
+#[derive(Clone)]
 pub struct ClassEntry {
     pub name: String,
-    #[serde(serialize_with = "u128_as_string")]
-    pub parent_scope: u128,
-    #[serde(serialize_with = "u128_as_string")]
-    pub class_scope: u128,
+    pub parent_scope: usize,
+    pub class_scope: usize,
 }
 
-#[derive(Serialize)]
+#[derive(Clone)]
 pub struct FunctionEntry {
     pub name: String,
-    #[serde(serialize_with = "u128_as_string")]
-    pub parent_scope: u128,
-    #[serde(serialize_with = "u128_as_string")]
-    pub function_scope: u128,
+    pub parent_scope: usize,
+    pub function_scope: usize,
 }
 
-#[derive(Serialize)]
+#[derive(Clone)]
 pub struct ObjectEntry {
     pub name: String,
-    #[serde(serialize_with = "u128_as_string")]
-    pub parent_scope: u128,
+    pub parent_scope: usize,
     // default value
+}
+
+enum TagData {
+    Class(ClassEntry),
+    Function(FunctionEntry),
+    ObjectEntry(ObjectEntry),
 }
 
 struct DataNode<'n> {
