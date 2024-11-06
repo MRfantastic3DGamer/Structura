@@ -1,11 +1,10 @@
 use std::{
     collections::{HashMap, HashSet},
-    path, usize,
+    usize,
 };
 
 mod read_imports;
 use read_imports::Import;
-use serde_json::Error;
 
 use crate::tag_entry::{ClassEntry, FunctionEntry, ObjectEntry, ScopeEntry};
 
@@ -46,11 +45,11 @@ impl AvailableTag {
         match self {
             AvailableTag::Class { name: _ } => None,
             AvailableTag::Function { name: _, class } => match class {
-                Ok(c) => None,
+                Ok(_) => None,
                 Err(c) => Some(c),
             },
             AvailableTag::Object { name: _, class } => match class {
-                Ok(c) => None,
+                Ok(_) => None,
                 Err(c) => Some(c),
             },
         }
@@ -233,9 +232,7 @@ fn read_all_imports<'a>(
                         Import::Module(path) => path,
                         Import::Package(path) => path,
                     };
-                    if let Some(import_index) =
-                        all_files.iter().position(|i| *i.clone() == import_path)
-                    {
+                    if let Some(import_index) = all_files.iter().position(|i| **i == import_path) {
                         all_imports.entry(f).or_default().push(import_index);
                     }
                 }
@@ -247,42 +244,4 @@ fn read_all_imports<'a>(
     }
 
     all_imports
-}
-
-fn evaluate_available_tags<'a>(
-    imports: Vec<Import>,
-    hard_data: HashMap<
-        &String,
-        (
-            Vec<ScopeEntry>,
-            Vec<ClassEntry>,
-            Vec<FunctionEntry>,
-            Vec<ObjectEntry>,
-        ),
-    >,
-) -> Result<Vec<AvailableTag>, &str> {
-    let mut available_tag: Vec<AvailableTag> = Vec::new();
-    for import in imports {
-        match import {
-            Import::File(path) => {
-                let file_tags_option = hard_data.get(&path);
-                match file_tags_option {
-                    Some(file_tags) => {
-                        let mut available_tag: Vec<AvailableTag> = Vec::new();
-                        // let scopes = file_tags.0;
-                    }
-                    None => {
-                        return Err("data for this file not found");
-                    }
-                }
-            }
-            Import::Module(path) => {
-                // todo: recursively look for all files inside and add them all
-            }
-            Import::Package(name) => {
-                // leave empty and enable mailability so that new functions / objects / classes can later be attached to this package
-            }
-        }
-    }
-    Ok(available_tag)
 }

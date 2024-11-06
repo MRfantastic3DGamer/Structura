@@ -1,36 +1,16 @@
-use tauri::{api::file, window, Manager, Runtime};
+use tauri::Runtime;
 
 mod evaluate_imports;
 mod tag_entry;
 
-use tag_entry::TagEntry;
-
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #[cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-//
-// region payloads
-#[derive(Clone, serde::Serialize)]
-struct ProgressPayload {
-    t: String,
-    key: String,
-    amount: f64,
-}
-
-#[derive(Clone, serde::Serialize)]
-struct MessagePayload {
-    t: String,
-    value: String,
-}
-
-// endregion
-
 // region output
-fn emit_project_structure() {}
-fn emit_project_data_flow() {}
+// fn emit_project_structure() {}
+// fn emit_project_data_flow() {}
 // endregion
 
 // region requests
-
 #[tauri::command]
 async fn request_project_structure<R: Runtime>(
     project_path: String,
@@ -40,16 +20,16 @@ async fn request_project_structure<R: Runtime>(
     create_project_structure(project_path, tags_path, window).await;
 }
 #[tauri::command]
-fn save_project_structure(tags_path: &str) {}
+fn save_project_structure(_tags_path: &str) {}
 #[tauri::command]
-fn del_project_structure(tags_path: &str) {}
+fn del_project_structure(_tags_path: &str) {}
 
 #[tauri::command]
-fn request_project_data_flow(tags_path: &str) {}
+fn request_project_data_flow(_tags_path: &str) {}
 #[tauri::command]
-fn save_project_data_flow(tags_path: &str) {}
+fn save_project_data_flow(_tags_path: &str) {}
 #[tauri::command]
-fn del_project_data_flow(tags_path: &str) {}
+fn del_project_data_flow(_tags_path: &str) {}
 // endregion interface
 
 /// create the project structure as :
@@ -78,7 +58,7 @@ async fn create_project_structure<R: Runtime>(
     let all_files = tag_entry::get_all_files(&tags_result);
     let hard_data =
         tag_entry::get_all_hard_data(&all_files, &tags_result, emit_process_progress_status).await;
-    let imported_tags =
+    let _imported_tags =
         evaluate_imports::evaluate_all_available_tags(&project_path, &all_files, hard_data);
 }
 

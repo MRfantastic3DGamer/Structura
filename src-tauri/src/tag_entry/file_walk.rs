@@ -1,12 +1,11 @@
 use std::{
     fs::File,
-    io::{self, BufRead, Seek, SeekFrom},
+    io::{self, BufRead},
     path::Path,
     u128,
 };
 
 use regex::Regex;
-use tauri::GlobPattern;
 
 use super::{ClassEntry, FunctionEntry, ObjectEntry, ScopeEntry, TagEntry};
 
@@ -36,7 +35,7 @@ fn brackets_walk(
     // Open the file
     let path = Path::new(file_path);
     let file_r = File::open(path);
-    let mut file: File;
+    let file: File;
     match file_r {
         Ok(f) => {
             file = f;
@@ -254,4 +253,4 @@ fn brackets_walk(
     )
 }
 
-fn indentation_walk() {}
+// TODO: fn indentation_walk() {}

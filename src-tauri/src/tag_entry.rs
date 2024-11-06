@@ -2,19 +2,15 @@ mod file_walk;
 mod serialization;
 
 use std::{
-    cell::RefCell,
     collections::{HashMap, HashSet},
     fs::File,
     io::{self, BufRead},
     path::Path,
-    rc::{Rc, Weak},
-    sync::Arc,
 };
 
 use file_walk::file_walk;
 use serde::Serialize;
 use serialization::{u128_as_string, vec_u128_as_string};
-use tauri::window;
 
 #[derive(Debug, Serialize)]
 pub struct TagEntry {
@@ -64,8 +60,6 @@ pub struct ObjectEntry {
     pub class_name: String,
     // default value
 }
-
-fn get_key(e: &ClassEntry, scopes: &Vec<ScopeEntry>) {}
 
 pub fn get_tags_data(tags_path: String) -> io::Result<Vec<TagEntry>> {
     let mut tags = Vec::new();
