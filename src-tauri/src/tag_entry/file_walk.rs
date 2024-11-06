@@ -5,6 +5,7 @@ use std::{
     u128,
 };
 
+use regex::Regex;
 use tauri::GlobPattern;
 
 use super::{ClassEntry, FunctionEntry, ObjectEntry, ScopeEntry, TagEntry};
@@ -75,6 +76,17 @@ fn brackets_walk(
             // todo: also look for if else elif switch etc
 
             if line_content.find(&t.reg_ex).is_some() {
+                let class_name_regex = Regex::new(r"(\w+) ").unwrap();
+
+                let class_name = match class_name_regex.captures(&line_content) {
+                    Some(n) => n[0].to_string(),
+                    None => "None".to_string(),
+                }
+                .trim()
+                .to_string();
+
+                // let line_parts: Vec<&str> = line_content.trim().split(" ").collect();
+                // let class_name = line_parts[0].to_string();
                 match t.tag.as_str() {
                     "c" => {
                         let new_class_entry = ClassEntry {
@@ -90,7 +102,6 @@ fn brackets_walk(
                                 usize::MAX // Indicate no parent (root scope)
                             },
                         };
-
                         class_entries.push(new_class_entry);
                         scope_scout_tag = 'c';
                     }
@@ -107,6 +118,7 @@ fn brackets_walk(
                             } else {
                                 usize::MAX // Indicate no parent (root scope)
                             },
+                            class_name: class_name,
                         };
                         function_entries.push(new_fn_entry);
                         scope_scout_tag = 'f';
@@ -119,6 +131,7 @@ fn brackets_walk(
                             } else {
                                 usize::MAX // Indicate no parent (root scope)
                             },
+                            class_name: class_name,
                         };
                         object_entries.push(new_obj_entry);
                         // TODO: scope_scout_tag = 'm';
@@ -223,11 +236,14 @@ fn brackets_walk(
     }
     println!("functions");
     for f in &function_entries {
-        println!("\t{} in {} of {}", f.name, f.parent_scope, f.function_scope);
+        println!(
+            "\t{} {} in {} of {}",
+            f.class_name, f.name, f.parent_scope, f.function_scope
+        );
     }
     println!("objects");
     for m in &object_entries {
-        println!("\t{} in {}", m.name, m.parent_scope);
+        println!("\t{} {} in {}", m.class_name, m.name, m.parent_scope);
     }
 
     (

@@ -54,25 +54,15 @@ pub struct FunctionEntry {
     pub name: String,
     pub parent_scope: usize,
     pub function_scope: usize,
+    pub class_name: String,
 }
 
 #[derive(Clone)]
 pub struct ObjectEntry {
     pub name: String,
     pub parent_scope: usize,
+    pub class_name: String,
     // default value
-}
-
-enum TagData {
-    Class(ClassEntry),
-    Function(FunctionEntry),
-    ObjectEntry(ObjectEntry),
-}
-
-struct DataNode<'n> {
-    pub name: String,
-    pub parent: Option<&'n DataNode<'n>>,
-    pub children: Vec<&'n DataNode<'n>>,
 }
 
 fn get_key(e: &ClassEntry, scopes: &Vec<ScopeEntry>) {}
@@ -158,7 +148,7 @@ pub async fn get_all_hard_data<'a>(
 
         // Process the file and collect the data
         let file_data = file_walk(file_path, &tags);
-        all_data.insert(file_path.clone(), file_data);
+        all_data.insert(*file_path, file_data);
 
         // Calculate progress and send it
         let progress = ((i + 1) as f32 / total_files as f32) * 100.0; // Use floating-point division
@@ -166,26 +156,4 @@ pub async fn get_all_hard_data<'a>(
     }
 
     all_data
-}
-
-impl<'n> DataNode<'n> {
-    // Constructor for new nodes without a parent (like a root node)
-    fn new(name: String) -> Rc<RefCell<Self>> {
-        Rc::new(RefCell::new(DataNode {
-            name,
-            parent: None,
-            children: Vec::new(),
-        }))
-    }
-}
-
-pub async fn format_hard_data(
-    file_path: &String,
-    hard_data: (
-        Vec<ScopeEntry>,
-        Vec<ClassEntry>,
-        Vec<FunctionEntry>,
-        Vec<ObjectEntry>,
-    ),
-) {
 }

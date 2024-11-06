@@ -1,10 +1,11 @@
 use std::{
     collections::{HashMap, HashSet},
-    path,
+    path, usize,
 };
 
 mod read_imports;
 use read_imports::Import;
+use serde_json::Error;
 
 use crate::tag_entry::{ClassEntry, FunctionEntry, ObjectEntry, ScopeEntry};
 
@@ -16,15 +17,65 @@ enum AvailableTag {
     /// for class the representation is (file_number, tag_number)
     Function {
         name: String,
-        class: Option<(usize, usize)>,
+        class: Result<(usize, usize), String>,
     },
     /// for class the representation is (file_number, tag_number)
     Object {
         name: String,
-        class: Option<(usize, usize)>,
+        class: Result<(usize, usize), String>,
     },
 }
 
+impl AvailableTag {
+    pub fn get_name(&self) -> &String {
+        match self {
+            AvailableTag::Class { name } => name,
+            AvailableTag::Function { name, class: _ } => name,
+            AvailableTag::Object { name, class: _ } => name,
+        }
+    }
+
+    pub fn is_class(&self) -> bool {
+        if let AvailableTag::Class { name: _ } = self {
+            return true;
+        }
+        return false;
+    }
+
+    pub fn needed_class(&self) -> Option<&String> {
+        match self {
+            AvailableTag::Class { name: _ } => None,
+            AvailableTag::Function { name: _, class } => match class {
+                Ok(c) => None,
+                Err(c) => Some(c),
+            },
+            AvailableTag::Object { name: _, class } => match class {
+                Ok(c) => None,
+                Err(c) => Some(c),
+            },
+        }
+    }
+
+    pub fn put_class_data(&mut self, file_tag_i: (usize, usize)) {
+        match self {
+            AvailableTag::Class { name: _ } => {}
+            AvailableTag::Function { name: _, class } => *class = Ok(file_tag_i),
+            AvailableTag::Object { name: _, class } => *class = Ok(file_tag_i),
+        }
+    }
+}
+
+// println!("\n\n-----raw imports-----\n\n");
+// for (file_i, file_imports) in &raw_imports {
+//     println!("\nfor file {}", all_files.get(file_i).unwrap());
+//     for import in file_imports {
+//         match import {
+//             Import::File(path) => println!("f-->{}", path),
+//             Import::Module(path) => println!("m-->{}", path),
+//             Import::Package(path) => println!("p-->{}", path),
+//         }
+//     }
+// }
 pub fn evaluate_all_available_tags<'a>(
     project_path: &String,
     all_files: &'a HashSet<&'a String>,
@@ -39,23 +90,11 @@ pub fn evaluate_all_available_tags<'a>(
     >,
 ) {
     let raw_imports = read_all_imports(project_path, all_files);
-    println!("\n\n-----raw imports-----\n\n");
-    for file in &raw_imports {
-        let file_path = file.0;
-        let imports = file.1;
-        println!("\nfor file {}", file_path);
-        for import in imports {
-            match import {
-                Import::File(path) => println!("f-->{}", path),
-                Import::Module(path) => println!("m-->{}", path),
-                Import::Package(path) => println!("p-->{}", path),
-            }
-        }
-    }
 
     let mut all_tags: HashMap<usize, Vec<AvailableTag>> = HashMap::new();
     let mut children_tags: HashMap<(usize, usize), Vec<(usize, usize)>> = HashMap::new();
 
+    // initial formation of tags list and tags hierarchy
     for (f, file_path) in all_files.iter().enumerate() {
         if let Some(file_hard_data) = all_hard_data.get(file_path) {
             let mut scope_to_class_tag = HashMap::new();
@@ -77,7 +116,7 @@ pub fn evaluate_all_available_tags<'a>(
                     .or_insert_with(Vec::new)
                     .push(AvailableTag::Function {
                         name: fun.name.clone(),
-                        class: None,
+                        class: Err(fun.class_name.clone()),
                     });
 
                 if let Some(parent_class) = scope_to_class_tag.get(&fun.parent_scope) {
@@ -85,14 +124,6 @@ pub fn evaluate_all_available_tags<'a>(
                         .entry((f, parent_class.clone()))
                         .or_default()
                         .push((f, all_tags[&f].len() - 1));
-
-                    println!(
-                        "added fn {},{} to {},{}",
-                        f,
-                        all_tags.len() - 1,
-                        f,
-                        parent_class
-                    );
                 }
             });
             file_hard_data.3.iter().for_each(|ob| {
@@ -101,7 +132,7 @@ pub fn evaluate_all_available_tags<'a>(
                     .or_insert_with(Vec::new)
                     .push(AvailableTag::Object {
                         name: ob.name.clone(),
-                        class: None,
+                        class: Err(ob.class_name.clone()),
                     });
 
                 if let Some(parent_class) = scope_to_class_tag.get(&ob.parent_scope) {
@@ -113,6 +144,61 @@ pub fn evaluate_all_available_tags<'a>(
             });
         }
     }
+
+    // trying to create connections between tag_class and some actual class that may exist
+    let mut changes = HashMap::new();
+    for (f, _) in all_files.iter().enumerate() {
+        let mut file_tags = all_tags.get(&f).unwrap().iter().enumerate();
+
+        let imported_files = match raw_imports.get(&f) {
+            Some(fi) => fi,
+            None => &Vec::new(),
+        };
+
+        println!("--> for file {}", f);
+        all_tags
+            .iter()
+            // tags from imported files
+            .filter(|(imported_file, _)| imported_files.contains(imported_file))
+            .for_each(|(imported_file, imported_tags)| {
+                for (i_t_i, i_t) in imported_tags.iter().enumerate() {
+                    if !i_t.is_class() {
+                        continue;
+                    }
+                    println!("--> checking {:?}", i_t);
+                    // all_tags.get(&f).unwrap().iter().for_each(|t| {
+                    //     if t.needs_class_mapping() {
+                    //         println!("  for {:?}", t);
+                    //     }
+                    // });
+                    if let Some(tag_match) = file_tags.find(|(_, t)| {
+                        t.needed_class().is_some() && (t.needed_class().unwrap() == i_t.get_name())
+                    }) {
+                        println!(
+                            "--> imported {} for {}",
+                            i_t.get_name(),
+                            tag_match.1.get_name()
+                        );
+                        changes.insert((f, tag_match.0.clone()), (*imported_file, i_t_i));
+                        println!(
+                            "--> {:?} --> {:?}",
+                            (f, tag_match.0.clone()),
+                            (*imported_file, i_t_i)
+                        )
+                    }
+                }
+            });
+    }
+
+    // bake changes
+    all_tags.iter_mut().for_each(|(f, file_tags)| {
+        file_tags.iter_mut().enumerate().for_each(|(tag_i, tag)| {
+            let tag_key = (*f, tag_i);
+            if changes.contains_key(&tag_key) {
+                tag.put_class_data(changes.get(&tag_key).unwrap().clone());
+            }
+        });
+    });
 
     println!("\n\n---------- file wise tags ----------\n\n");
     for (f, file_path) in all_files.iter().enumerate() {
@@ -134,14 +220,25 @@ pub fn evaluate_all_available_tags<'a>(
 fn read_all_imports<'a>(
     project_path: &String,
     all_files: &'a HashSet<&'a String>,
-) -> HashMap<&'a String, Vec<Import>> {
-    let mut all_imports = HashMap::new();
+) -> HashMap<usize, Vec<usize>> {
+    let mut all_imports: HashMap<usize, Vec<usize>> = HashMap::new();
 
-    for file in all_files {
+    for (f, file) in all_files.iter().enumerate() {
         println!("{}", file);
         match read_imports::get_imported_files(project_path, file) {
             Ok(imports) => {
-                all_imports.insert(*file, imports);
+                for import in imports {
+                    let import_path = match import {
+                        Import::File(path) => path,
+                        Import::Module(path) => path,
+                        Import::Package(path) => path,
+                    };
+                    if let Some(import_index) =
+                        all_files.iter().position(|i| *i.clone() == import_path)
+                    {
+                        all_imports.entry(f).or_default().push(import_index);
+                    }
+                }
             }
             Err(e) => {
                 println!("error in imports for {} => {}", file, e);
