@@ -90,6 +90,19 @@ pub fn evaluate_all_available_tags<'a>(
 ) {
     let raw_imports = read_all_imports(project_path, all_files);
 
+    println!("-------- all_files --------");
+    for (f, f_p) in all_files.iter().enumerate() {
+        println!("({}) {}", f, f_p);
+    }
+
+    println!("-------- raw_imports --------");
+    for (file, imports) in &raw_imports {
+        println!("for file {}", file);
+        for import in imports {
+            println!("\t{}", import);
+        }
+    }
+
     let mut all_tags: HashMap<usize, Vec<AvailableTag>> = HashMap::new();
     let mut children_tags: HashMap<(usize, usize), Vec<(usize, usize)>> = HashMap::new();
 
@@ -147,7 +160,7 @@ pub fn evaluate_all_available_tags<'a>(
     // trying to create connections between tag_class and some actual class that may exist
     let mut changes = HashMap::new();
     for (f, _) in all_files.iter().enumerate() {
-        let mut file_tags = all_tags.get(&f).unwrap().iter().enumerate();
+        let file_tags = all_tags.get(&f).unwrap();
 
         let imported_files = match raw_imports.get(&f) {
             Some(fi) => fi,
@@ -165,25 +178,15 @@ pub fn evaluate_all_available_tags<'a>(
                         continue;
                     }
                     println!("--> checking {:?}", i_t);
-                    // all_tags.get(&f).unwrap().iter().for_each(|t| {
-                    //     if t.needs_class_mapping() {
-                    //         println!("  for {:?}", t);
-                    //     }
-                    // });
-                    if let Some(tag_match) = file_tags.find(|(_, t)| {
-                        t.needed_class().is_some() && (t.needed_class().unwrap() == i_t.get_name())
-                    }) {
+                    for (matched_tag_index, t) in file_tags.iter().enumerate() {
                         println!(
-                            "--> imported {} for {}",
-                            i_t.get_name(),
-                            tag_match.1.get_name()
+                            "  for {:?} {}",
+                            t,
+                            t.needed_class().unwrap_or(&"!".to_string()) == i_t.get_name()
                         );
-                        changes.insert((f, tag_match.0.clone()), (*imported_file, i_t_i));
-                        println!(
-                            "--> {:?} --> {:?}",
-                            (f, tag_match.0.clone()),
-                            (*imported_file, i_t_i)
-                        )
+                        if t.needed_class().unwrap_or(&"!".to_string()) == i_t.get_name() {
+                            changes.insert((f, matched_tag_index), (*imported_file, i_t_i));
+                        }
                     }
                 }
             });
