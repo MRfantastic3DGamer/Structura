@@ -43,6 +43,7 @@ pub struct ClassEntry {
     pub name: String,
     pub parent_scope: usize,
     pub class_scope: usize,
+    pub parents: Vec<String>,
 }
 
 #[derive(Clone)]

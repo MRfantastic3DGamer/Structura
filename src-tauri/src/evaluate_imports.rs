@@ -26,12 +26,12 @@ pub fn evaluate_all_available_tags<'a>(
 ) {
     let raw_imports = read_all_imports(project_path, all_files);
 
-    println!("-------- all_files --------");
+    println!("\n\n-------- all_files --------\n\n");
     for (f, f_p) in all_files.iter().enumerate() {
         println!("({}) {}", f, f_p);
     }
 
-    println!("-------- raw_imports --------");
+    println!("\n\n-------- raw_imports --------\n\n");
     for (file, imports) in &raw_imports {
         println!("for file {}", file);
         for import in imports {
@@ -54,8 +54,12 @@ pub fn evaluate_all_available_tags<'a>(
                     .or_insert_with(Vec::new)
                     .push(ProgramTag::Class {
                         name: c.name.clone(),
+                        parents: c
+                            .parents
+                            .iter()
+                            .map(|p| ClassType::new(&file_path, p.clone()))
+                            .collect(),
                     });
-
                 scope_to_class_tag.insert(c.class_scope, i);
             });
             file_hard_data.2.iter().for_each(|fun| {
@@ -94,7 +98,7 @@ pub fn evaluate_all_available_tags<'a>(
     }
 
     // trying to create connections between tag_class and some actual class that may exist
-    let mut changes = HashMap::new();
+    let mut changes: HashMap<(usize, usize), Vec<(usize, usize, usize)>> = HashMap::new();
     for (f, _) in all_files.iter().enumerate() {
         let file_tags = all_tags.get(&f).unwrap();
 
@@ -103,7 +107,6 @@ pub fn evaluate_all_available_tags<'a>(
             None => &Vec::new(),
         };
 
-        println!("--> for file {}", f);
         all_tags
             .iter()
             // tags from imported files
@@ -113,16 +116,15 @@ pub fn evaluate_all_available_tags<'a>(
                     if !i_t.is_class() {
                         continue;
                     }
-                    println!("--> checking {:?}", i_t);
                     for (matched_tag_index, t) in file_tags.iter().enumerate() {
-                        println!(
-                            "  for {:?} {}",
-                            t,
-                            t.needed_class().unwrap_or(&"!".to_string()) == i_t.get_name()
-                        );
-                        if t.needed_class().unwrap_or(&"!".to_string()) == i_t.get_name() {
-                            changes.insert((f, matched_tag_index), (*imported_file, i_t_i));
-                        }
+                        t.needed_class().iter().enumerate().for_each(|(i, c)| {
+                            if c.unwrap_or(&"!".to_string()) == i_t.get_name() {
+                                changes
+                                    .entry((f, matched_tag_index))
+                                    .or_insert_with(Vec::new)
+                                    .push((i, *imported_file, i_t_i));
+                            }
+                        });
                     }
                 }
             });

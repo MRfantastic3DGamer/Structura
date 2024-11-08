@@ -42,48 +42,57 @@ impl ClassType {
 pub enum ProgramTag {
     Class {
         name: String,
+        parents: Vec<ClassType>,
     },
     /// for class the representation is (file_number, tag_number)
-    Function {
-        name: String,
-        class: ClassType,
-    },
+    Function { name: String, class: ClassType },
     /// for class the representation is (file_number, tag_number)
-    Object {
-        name: String,
-        class: ClassType,
-    },
+    Object { name: String, class: ClassType },
 }
 
 impl ProgramTag {
     pub fn get_name(&self) -> &String {
         match self {
-            ProgramTag::Class { name } => name,
+            ProgramTag::Class { name, parents: _ } => name,
             ProgramTag::Function { name, class: _ } => name,
             ProgramTag::Object { name, class: _ } => name,
         }
     }
 
     pub fn is_class(&self) -> bool {
-        if let ProgramTag::Class { name: _ } = self {
+        if let ProgramTag::Class {
+            name: _,
+            parents: _,
+        } = self
+        {
             return true;
         }
         return false;
     }
 
-    pub fn needed_class(&self) -> Option<&String> {
+    pub fn needed_class(&self) -> Vec<Option<&String>> {
         match self {
-            ProgramTag::Class { name: _ } => None,
-            ProgramTag::Function { name: _, class } => class.needed_class(),
-            ProgramTag::Object { name: _, class } => class.needed_class(),
+            ProgramTag::Class { name: _, parents } => {
+                parents.iter().map(|p| p.needed_class()).collect()
+            }
+            ProgramTag::Function { name: _, class } => vec![class.needed_class()],
+            ProgramTag::Object { name: _, class } => vec![class.needed_class()],
         }
     }
 
-    pub fn put_class_data(&mut self, file_tag_i: (usize, usize)) {
+    pub fn put_class_data(&mut self, file_tag_i: Vec<(usize, usize, usize)>) {
         match self {
-            ProgramTag::Class { name: _ } => {}
-            ProgramTag::Function { name: _, class } => class.set_class(file_tag_i.0, file_tag_i.1),
-            ProgramTag::Object { name: _, class } => class.set_class(file_tag_i.0, file_tag_i.1),
+            ProgramTag::Class { name: _, parents } => {
+                file_tag_i.iter().for_each(|(class_i, file, tag)| {
+                    parents.get_mut(*class_i).unwrap().set_class(*file, *tag);
+                });
+            }
+            ProgramTag::Function { name: _, class } => {
+                class.set_class(file_tag_i[0].1, file_tag_i[0].2)
+            }
+            ProgramTag::Object { name: _, class } => {
+                class.set_class(file_tag_i[0].1, file_tag_i[0].2)
+            }
         }
     }
 }

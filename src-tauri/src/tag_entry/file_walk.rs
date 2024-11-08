@@ -75,6 +75,7 @@ fn brackets_walk(
             // todo: also look for if else elif switch etc
 
             if line_content.find(&t.reg_ex).is_some() {
+                // TODO:search for all the data types first
                 let class_name_regex = Regex::new(r"(\w+) ").unwrap();
 
                 let class_name = match class_name_regex.captures(&line_content) {
@@ -88,6 +89,8 @@ fn brackets_walk(
                 // let class_name = line_parts[0].to_string();
                 match t.tag.as_str() {
                     "c" => {
+                        let parents = find_parents(&line_content);
+                        println!("parents -> {:?}", &parents);
                         let new_class_entry = ClassEntry {
                             name: t.tag_name.clone(),
                             class_scope: if let Some(&parent_idx) = scope_stack.last() {
@@ -100,6 +103,7 @@ fn brackets_walk(
                             } else {
                                 usize::MAX // Indicate no parent (root scope)
                             },
+                            parents: parents,
                         };
                         class_entries.push(new_class_entry);
                         scope_scout_tag = 'c';
@@ -254,3 +258,13 @@ fn brackets_walk(
 }
 
 // TODO: fn indentation_walk() {}
+fn find_parents(line: &String) -> Vec<String> {
+    // Corrected regex pattern to capture access specifiers and class names.
+    let parent_regex = Regex::new(r"(public|private|protected)\s+(\w+)").unwrap();
+
+    parent_regex
+        .captures_iter(line)
+        .filter_map(|cap| cap.get(2))
+        .map(|p| p.as_str().to_string())
+        .collect()
+}
