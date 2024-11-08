@@ -3,78 +3,14 @@ use std::{
     usize,
 };
 
+mod languages_constants;
+mod program_tag;
 mod read_imports;
+use program_tag::{ClassType, ProgramTag};
 use read_imports::Import;
 
 use crate::tag_entry::{ClassEntry, FunctionEntry, ObjectEntry, ScopeEntry};
 
-#[derive(Debug)]
-enum AvailableTag {
-    Class {
-        name: String,
-    },
-    /// for class the representation is (file_number, tag_number)
-    Function {
-        name: String,
-        class: Result<(usize, usize), String>,
-    },
-    /// for class the representation is (file_number, tag_number)
-    Object {
-        name: String,
-        class: Result<(usize, usize), String>,
-    },
-}
-
-impl AvailableTag {
-    pub fn get_name(&self) -> &String {
-        match self {
-            AvailableTag::Class { name } => name,
-            AvailableTag::Function { name, class: _ } => name,
-            AvailableTag::Object { name, class: _ } => name,
-        }
-    }
-
-    pub fn is_class(&self) -> bool {
-        if let AvailableTag::Class { name: _ } = self {
-            return true;
-        }
-        return false;
-    }
-
-    pub fn needed_class(&self) -> Option<&String> {
-        match self {
-            AvailableTag::Class { name: _ } => None,
-            AvailableTag::Function { name: _, class } => match class {
-                Ok(_) => None,
-                Err(c) => Some(c),
-            },
-            AvailableTag::Object { name: _, class } => match class {
-                Ok(_) => None,
-                Err(c) => Some(c),
-            },
-        }
-    }
-
-    pub fn put_class_data(&mut self, file_tag_i: (usize, usize)) {
-        match self {
-            AvailableTag::Class { name: _ } => {}
-            AvailableTag::Function { name: _, class } => *class = Ok(file_tag_i),
-            AvailableTag::Object { name: _, class } => *class = Ok(file_tag_i),
-        }
-    }
-}
-
-// println!("\n\n-----raw imports-----\n\n");
-// for (file_i, file_imports) in &raw_imports {
-//     println!("\nfor file {}", all_files.get(file_i).unwrap());
-//     for import in file_imports {
-//         match import {
-//             Import::File(path) => println!("f-->{}", path),
-//             Import::Module(path) => println!("m-->{}", path),
-//             Import::Package(path) => println!("p-->{}", path),
-//         }
-//     }
-// }
 pub fn evaluate_all_available_tags<'a>(
     project_path: &String,
     all_files: &'a HashSet<&'a String>,
@@ -103,7 +39,7 @@ pub fn evaluate_all_available_tags<'a>(
         }
     }
 
-    let mut all_tags: HashMap<usize, Vec<AvailableTag>> = HashMap::new();
+    let mut all_tags: HashMap<usize, Vec<ProgramTag>> = HashMap::new();
     let mut children_tags: HashMap<(usize, usize), Vec<(usize, usize)>> = HashMap::new();
 
     // initial formation of tags list and tags hierarchy
@@ -116,7 +52,7 @@ pub fn evaluate_all_available_tags<'a>(
                 all_tags
                     .entry(f)
                     .or_insert_with(Vec::new)
-                    .push(AvailableTag::Class {
+                    .push(ProgramTag::Class {
                         name: c.name.clone(),
                     });
 
@@ -126,9 +62,9 @@ pub fn evaluate_all_available_tags<'a>(
                 all_tags
                     .entry(f)
                     .or_insert_with(Vec::new)
-                    .push(AvailableTag::Function {
+                    .push(ProgramTag::Function {
                         name: fun.name.clone(),
-                        class: Err(fun.class_name.clone()),
+                        class: ClassType::new(&file_path, fun.class_name.clone()),
                     });
 
                 if let Some(parent_class) = scope_to_class_tag.get(&fun.parent_scope) {
@@ -142,9 +78,9 @@ pub fn evaluate_all_available_tags<'a>(
                 all_tags
                     .entry(f)
                     .or_insert_with(Vec::new)
-                    .push(AvailableTag::Object {
+                    .push(ProgramTag::Object {
                         name: ob.name.clone(),
-                        class: Err(ob.class_name.clone()),
+                        class: ClassType::new(&file_path, ob.class_name.clone()),
                     });
 
                 if let Some(parent_class) = scope_to_class_tag.get(&ob.parent_scope) {
