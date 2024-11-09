@@ -11,7 +11,7 @@ use read_imports::Import;
 
 use crate::tag_entry::{ClassEntry, FunctionEntry, ObjectEntry, ScopeEntry};
 
-pub fn evaluate_all_available_tags<'a>(
+pub fn evaluate_all_hard_data<'a>(
     project_path: &String,
     all_files: &'a HashSet<&'a String>,
     all_hard_data: HashMap<
@@ -23,6 +23,10 @@ pub fn evaluate_all_available_tags<'a>(
             Vec<ObjectEntry>,
         ),
     >,
+) -> (
+    HashMap<usize, Vec<usize>>,
+    HashMap<usize, Vec<ProgramTag>>,
+    HashMap<(usize, usize), Vec<(usize, usize)>>,
 ) {
     let raw_imports = read_all_imports(project_path, all_files);
 
@@ -155,6 +159,63 @@ pub fn evaluate_all_available_tags<'a>(
             println!("   to {:?}", all_tags[cf][*ck]);
         });
     }
+
+    return (raw_imports, all_tags, children_tags);
+}
+
+pub fn jsonify_evaluated_data(
+    raw_imports: &HashMap<usize, Vec<usize>>,
+    all_tags: &HashMap<usize, Vec<ProgramTag>>,
+    children_tags: &HashMap<(usize, usize), Vec<(usize, usize)>>,
+) -> (
+    HashMap<String, Vec<String>>,
+    HashMap<String, Vec<ProgramTag>>,
+    HashMap<String, Vec<(String, String)>>,
+) {
+    let imports = raw_imports
+        .into_iter()
+        .map(|(file, imported_files)| {
+            (
+                file.to_string(),
+                imported_files
+                    .into_iter()
+                    .map(|f| f.to_string())
+                    .collect::<Vec<String>>(),
+            )
+        })
+        .collect::<HashMap<String, Vec<String>>>();
+
+    let tags = all_tags
+        .into_iter()
+        .map(|(file, tags)| {
+            (
+                file.to_string(),
+                tags.into_iter()
+                    .map(|tag| tag.clone())
+                    .collect::<Vec<ProgramTag>>(),
+            )
+        })
+        .collect::<HashMap<String, Vec<ProgramTag>>>();
+
+    let children = children_tags
+        .into_iter()
+        .map(|((from_file, from_tag), to_tags)| {
+            let mut key = "[".to_string();
+            key.push_str(from_file.to_string().as_str());
+            key.push_str(",");
+            key.push_str(from_tag.to_string().as_str());
+            key.push_str("]");
+            (
+                key,
+                to_tags
+                    .into_iter()
+                    .map(|(to_file, to_tag)| (to_file.to_string(), to_tag.to_string()))
+                    .collect::<Vec<(String, String)>>(),
+            )
+        })
+        .collect::<HashMap<String, Vec<(String, String)>>>();
+
+    return (imports, tags, children);
 }
 
 fn read_all_imports<'a>(

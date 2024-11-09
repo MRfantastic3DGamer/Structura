@@ -1,6 +1,8 @@
+use serde::{Deserialize, Serialize};
+
 use super::languages_constants::get_data_types;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum ClassType {
     Undiscovered(String),
     Connected(usize, usize),
@@ -38,7 +40,7 @@ impl ClassType {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum ProgramTag {
     Class {
         name: String,

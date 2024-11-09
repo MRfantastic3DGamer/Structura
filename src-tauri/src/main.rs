@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+
+use serde_json::json;
 use tauri::Runtime;
 
 mod evaluate_imports;
@@ -11,26 +14,6 @@ mod tag_entry;
 // endregion
 
 // region requests
-#[tauri::command]
-async fn request_project_structure<R: Runtime>(
-    project_path: String,
-    tags_path: String,
-    window: tauri::Window<R>,
-) {
-    create_project_structure(project_path, tags_path, window).await;
-}
-#[tauri::command]
-fn save_project_structure(_tags_path: &str) {}
-#[tauri::command]
-fn del_project_structure(_tags_path: &str) {}
-
-#[tauri::command]
-fn request_project_data_flow(_tags_path: &str) {}
-#[tauri::command]
-fn save_project_data_flow(_tags_path: &str) {}
-#[tauri::command]
-fn del_project_data_flow(_tags_path: &str) {}
-// endregion interface
 
 /// create the project structure as :
 ///
@@ -41,7 +24,8 @@ fn del_project_data_flow(_tags_path: &str) {}
 /// where **F**:`files`, **S**:`scopes`, **T**:`tags`
 ///
 /// sorting is done by `F(name),S(starting_point),T(definition_order)` for easy indexing
-async fn create_project_structure<R: Runtime>(
+#[tauri::command]
+async fn request_project_structure<R: Runtime>(
     project_path: String,
     tags_path: String,
     window: tauri::Window<R>,
@@ -58,9 +42,40 @@ async fn create_project_structure<R: Runtime>(
     let all_files = tag_entry::get_all_files(&tags_result);
     let hard_data =
         tag_entry::get_all_hard_data(&all_files, &tags_result, emit_process_progress_status).await;
-    let _imported_tags =
-        evaluate_imports::evaluate_all_available_tags(&project_path, &all_files, hard_data);
+    let (raw_imports, all_tags, children_tags) =
+        evaluate_imports::evaluate_all_hard_data(&project_path, &all_files, hard_data);
+
+    let (imports_json, tags_json, children_json) =
+        evaluate_imports::jsonify_evaluated_data(&raw_imports, &all_tags, &children_tags);
+
+    println!("children_json => {:?}", &children_json);
+
+    let project_hierarchy = json!([all_files, imports_json, tags_json, children_json]);
+    //  (all_files, raw_imports, all_tags, children_tags);
+
+    let structure_emit_result = window.emit("project_structure", project_hierarchy);
+    match structure_emit_result {
+        Ok(_) => {}
+        Err(e) => {
+            eprintln!(
+                "couldn't emit the structure data properly due to \n\terror : {}",
+                e
+            );
+        }
+    }
 }
+#[tauri::command]
+fn save_project_structure(_tags_path: &str) {}
+#[tauri::command]
+fn del_project_structure(_tags_path: &str) {}
+
+#[tauri::command]
+fn request_project_data_flow(_tags_path: &str) {}
+#[tauri::command]
+fn save_project_data_flow(_tags_path: &str) {}
+#[tauri::command]
+fn del_project_data_flow(_tags_path: &str) {}
+// endregion interface
 
 fn main() {
     tauri::Builder::default()
