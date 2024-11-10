@@ -23,6 +23,7 @@ pub fn evaluate_all_hard_data<'a>(
             Vec<ObjectEntry>,
         ),
     >,
+    progress_indication: impl Fn(&str, u8),
 ) -> (
     HashMap<usize, Vec<usize>>,
     HashMap<usize, Vec<ProgramTag>>,
@@ -98,6 +99,9 @@ pub fn evaluate_all_hard_data<'a>(
                         .push((f, all_tags[&f].len() - 1));
                 }
             });
+
+            let progress = ((f + 1) as f32 / all_files.len() as f32) * 100.0;
+            progress_indication("initial tags formatting", progress as u8);
         }
     }
 
@@ -132,6 +136,9 @@ pub fn evaluate_all_hard_data<'a>(
                     }
                 }
             });
+
+        let progress = ((f + 1) as f32 / all_files.len() as f32) * 100.0;
+        progress_indication("connecting classes", progress as u8);
     }
 
     // bake changes

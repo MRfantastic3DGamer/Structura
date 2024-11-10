@@ -120,7 +120,7 @@ pub fn get_all_files<'a>(tags: &'a Vec<TagEntry>) -> HashSet<&'a String> {
 pub async fn get_all_hard_data<'a>(
     all_files: &'a HashSet<&'a String>,
     all_tags: &'a Vec<TagEntry>,
-    progress_indication: impl Fn(u8),
+    progress_indication: impl Fn(&str, u8),
 ) -> HashMap<
     &'a String,
     (
@@ -145,9 +145,8 @@ pub async fn get_all_hard_data<'a>(
         let file_data = file_walk(file_path, &tags);
         all_data.insert(*file_path, file_data);
 
-        // Calculate progress and send it
-        let progress = ((i + 1) as f32 / total_files as f32) * 100.0; // Use floating-point division
-        progress_indication(progress as u8); // Cast to u8 for progress indication
+        let progress = ((i + 1) as f32 / total_files as f32) * 100.0;
+        progress_indication("files reading pass 1", progress as u8);
     }
 
     all_data

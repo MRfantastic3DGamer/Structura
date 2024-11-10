@@ -4,9 +4,11 @@ import Statics from "../Statics";
 import { invoke } from '@tauri-apps/api/tauri';
 import { listen } from '@tauri-apps/api/event';
 
+type TagKey = [number, number]
+
 type ClassType =
     | { type: 'Undiscovered'; value: string }
-    | { type: 'Connected'; value: [number, number] }
+    | { type: 'Connected'; value: TagKey }
     | { type: 'DataType'; value: number };
 
 interface ProgramTag {
@@ -21,17 +23,24 @@ interface ProgramTag {
 function StructureDiagram() {
     const projectPath = localStorage.getItem(Statics.PROJECT_PATH);
     const [D, setD] = useState("");
-    const [progress, setProgress] = useState(0);
+    const [progress, setProgress] = useState<Map<string, number>>(new Map());
     const [allFiles, setAllFiles] = useState<Set<string>>(new Set());
     const [allImports, setAllImports] = useState<Map<number, number[]>>(new Map());
     const [allTags, setAllTags] = useState<Map<number, ProgramTag[]>>(new Map());
-    const [childrenTable, setChildrenTable] = useState<Map<[number, number], [number, number][]>>(new Map());
+    const [childrenTable, setChildrenTable] = useState<Map<TagKey, TagKey[]>>(new Map());
+
+    const [debug, setDebug] = useState<any>();
 
     useEffect(() => {
-        // Listen to the progress event emitted from the backend
         const progress_listen = listen('progress', (event) => {
-            // event.payload will be the progress value emitted from the backend
-            setProgress(event.payload as number);
+            let [key, value] = event.payload as [string, number];
+            setDebug(event.payload);
+
+            setProgress((prev) => {
+                const updatedProgress = new Map(prev);
+                updatedProgress.set(key, value);
+                return updatedProgress;
+            });
         });
 
         const project_structure_listen = listen('project_structure', (event) => {
@@ -40,7 +49,7 @@ function StructureDiagram() {
                     Set<string>,
                     Map<number, number[]>,
                     Map<number, ProgramTag[]>,
-                    Map<String, [number, number][]>
+                    Map<String, TagKey[]>
                 ];
 
             // Transform plain JSON objects to appropriate TypeScript data structures if necessary
@@ -48,7 +57,7 @@ function StructureDiagram() {
             setAllImports(new Map(Object.entries(ImportsJson).map(([k, v]) => [Number(k), v])));
             setAllTags(new Map(Object.entries(tags_json).map(([k, v]) => [Number(k), v])));
             setChildrenTable(new Map(Object.entries(ChildrenJson).map(([k, v]) => {
-                const key = JSON.parse(k) as [number, number];
+                const key = JSON.parse(k) as TagKey;
                 return [key, v];
             })));
         })
@@ -84,28 +93,33 @@ function StructureDiagram() {
 
     return (
         <div>
-            <h1>{projectPath}</h1>
+            <h3>{projectPath}</h3>
             <button onClick={generateTags}>Generate tags</button>
-            <h1>{D}</h1>
+            <h5>{D}</h5>
 
-            {/* Display progress */}
-            <p>Progress: {progress}%</p>
+            Display progress : {progress}
+            {Array.from(progress.entries()).map(([progressType, progressValue]) => (
+                <div key={progressType}>
+                    <p>{progressType}: {progressValue} %</p>
+                    <progress value={progressValue / 100.0} max="1" />
+                </div>
+            ))}
 
 
             {/* Log all the state data */}
             <p>
-                <strong>HashSet:</strong> {JSON.stringify(Array.from(allFiles), null, 2)}
+                <strong>allFiles:</strong> {JSON.stringify(Array.from(allFiles), null, 2)}
             </p>
             <p>
-                <strong>HashMapUsizeVecUsize:</strong> {JSON.stringify(
+                <strong>allImports:</strong> {JSON.stringify(
                     Array.from(allImports.entries()), null, 2)}
             </p>
             <p>
-                <strong>HashMapUsizeVecProgramTag:</strong> {JSON.stringify(
+                <strong>allTags:</strong> {JSON.stringify(
                     Array.from(allTags.entries()), null, 2)}
             </p>
             <p>
-                <strong>HashMapTupleUsizeUsizeVecTuple:</strong> {JSON.stringify(
+                <strong>childrenTable:</strong> {JSON.stringify(
                     Array.from(childrenTable.entries()), null, 2)}
             </p>
         </div>

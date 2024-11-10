@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, str};
 
 use serde_json::json;
 use tauri::Runtime;
@@ -30,8 +30,8 @@ async fn request_project_structure<R: Runtime>(
     tags_path: String,
     window: tauri::Window<R>,
 ) {
-    let emit_process_progress_status = |progress: u8| {
-        window.emit("progress", progress).unwrap();
+    let emit_process_progress_status = |key: &str, progress: u8| {
+        window.emit("progress", json!((key, progress))).unwrap();
     };
 
     let tags_result = match tag_entry::get_tags_data(tags_path) {
@@ -42,8 +42,12 @@ async fn request_project_structure<R: Runtime>(
     let all_files = tag_entry::get_all_files(&tags_result);
     let hard_data =
         tag_entry::get_all_hard_data(&all_files, &tags_result, emit_process_progress_status).await;
-    let (raw_imports, all_tags, children_tags) =
-        evaluate_imports::evaluate_all_hard_data(&project_path, &all_files, hard_data);
+    let (raw_imports, all_tags, children_tags) = evaluate_imports::evaluate_all_hard_data(
+        &project_path,
+        &all_files,
+        hard_data,
+        emit_process_progress_status,
+    );
 
     let (imports_json, tags_json, children_json) =
         evaluate_imports::jsonify_evaluated_data(&raw_imports, &all_tags, &children_tags);
