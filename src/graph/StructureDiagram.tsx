@@ -29,12 +29,15 @@ function StructureDiagram() {
     const [allTags, setAllTags] = useState<Map<number, ProgramTag[]>>(new Map());
     const [childrenTable, setChildrenTable] = useState<Map<TagKey, TagKey[]>>(new Map());
 
-    const [debug, setDebug] = useState<any>();
+    // const [debug, setDebug] = useState<any>();
+
+    // const getTag = (key: TagKey) => {
+    //     return (allTags.get(key[0]) as ProgramTag[])[key[1]];
+    // }
 
     useEffect(() => {
         const progress_listen = listen('progress', (event) => {
             let [key, value] = event.payload as [string, number];
-            setDebug(event.payload);
 
             setProgress((prev) => {
                 const updatedProgress = new Map(prev);

@@ -1,18 +1,15 @@
-use std::{collections::HashMap, str};
+use std::str;
 
+use crate::tag_entry::file_walk::language_file_walk;
 use serde_json::json;
 use tauri::Runtime;
 
+mod data;
 mod evaluate_imports;
 mod tag_entry;
 
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #[cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-// region output
-// fn emit_project_structure() {}
-// fn emit_project_data_flow() {}
-// endregion
-
 // region requests
 
 /// create the project structure as :
@@ -52,10 +49,7 @@ async fn request_project_structure<R: Runtime>(
     let (imports_json, tags_json, children_json) =
         evaluate_imports::jsonify_evaluated_data(&raw_imports, &all_tags, &children_tags);
 
-    println!("children_json => {:?}", &children_json);
-
     let project_hierarchy = json!([all_files, imports_json, tags_json, children_json]);
-    //  (all_files, raw_imports, all_tags, children_tags);
 
     let structure_emit_result = window.emit("project_structure", project_hierarchy);
     match structure_emit_result {
@@ -66,6 +60,11 @@ async fn request_project_structure<R: Runtime>(
                 e
             );
         }
+    }
+
+    println!("\n\n------ regex test ------\n\n");
+    for f_p in all_files {
+        language_file_walk(f_p);
     }
 }
 #[tauri::command]

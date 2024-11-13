@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::languages_constants::get_data_types;
+use crate::data::get_data_types;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum ClassType {

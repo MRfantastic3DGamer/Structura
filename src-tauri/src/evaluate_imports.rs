@@ -3,7 +3,6 @@ use std::{
     usize,
 };
 
-mod languages_constants;
 mod program_tag;
 mod read_imports;
 use program_tag::{ClassType, ProgramTag};
@@ -108,7 +107,10 @@ pub fn evaluate_all_hard_data<'a>(
     // trying to create connections between tag_class and some actual class that may exist
     let mut changes: HashMap<(usize, usize), Vec<(usize, usize, usize)>> = HashMap::new();
     for (f, _) in all_files.iter().enumerate() {
-        let file_tags = all_tags.get(&f).unwrap();
+        let file_tags = match all_tags.get(&f) {
+            Some(x) => x,
+            None => &Vec::new(),
+        };
 
         let imported_files = match raw_imports.get(&f) {
             Some(fi) => fi,
