@@ -1,5 +1,9 @@
-// mod crate::evaluate_imports::languages_constants::get_language;
-
+use super::{ClassEntry, FunctionEntry, ObjectEntry, ScopeEntry, TagEntry};
+use crate::data::{
+    get_regex_access_child, get_regex_assignments, get_regex_class, get_regex_fun,
+    get_regex_interface, get_regex_object,
+};
+use regex::Regex;
 use std::{
     fs::{self, File},
     io::{self, BufRead},
@@ -7,18 +11,14 @@ use std::{
     u128,
 };
 
-use regex::Regex;
-
-use super::{ClassEntry, FunctionEntry, ObjectEntry, ScopeEntry, TagEntry};
-
 macro_rules! build_regex_vec_from_res {
     ($res:expr) => {{
-        let (_, regex_res) = $res; // Destructure the tuple
+        let (_, regex_res) = $res;
         if regex_res.is_none() {
             eprintln!("couldn't get the regex for the file {:?}", $res);
             return None;
         }
-        let regex_strs = regex_res.unwrap(); // Unwrap the Option<&&[&str]>
+        let regex_strs = regex_res.unwrap();
         let mut regex_vec = vec![];
 
         for regex_str in regex_strs.into_iter() {
@@ -297,18 +297,53 @@ pub fn language_file_walk(file_path: &String) -> Option<bool> {
         Err(_) => String::new(),
     };
 
-    let assignments_regex =
-        build_regex_vec_from_res!(crate::data::get_regex_assignments(file_path));
-    let class_regex = build_regex_vec_from_res!(crate::data::get_regex_class(file_path));
-    let funs_regex = build_regex_vec_from_res!(crate::data::get_regex_fun(file_path));
-    let _interfaces_regex = build_regex_vec_from_res!(crate::data::get_regex_interface(file_path));
-    let objs_regex = build_regex_vec_from_res!(crate::data::get_regex_object(file_path));
+    let access_children_regex = build_regex_vec_from_res!(get_regex_access_child(file_path));
+    let assignments_regex = build_regex_vec_from_res!(get_regex_assignments(file_path));
+    let class_regex = build_regex_vec_from_res!(get_regex_class(file_path));
+    let funs_regex = build_regex_vec_from_res!(get_regex_fun(file_path));
+    let interfaces_regex = build_regex_vec_from_res!(get_regex_interface(file_path));
+    let objs_regex = build_regex_vec_from_res!(get_regex_object(file_path));
 
     println!();
+    println!("{}", file_path);
+    for a in access_children_regex {
+        for caps in a.find_iter(&file_text) {
+            println!("{}", caps.as_str());
+        }
+        println!();
+    }
     for a in assignments_regex {
+        // println!("for regex:{}", a.as_str());
         for caps in a.captures_iter(&file_text) {
-            println!("for obj {}", caps.get(1).map(|m| m.as_str()).unwrap_or(""));
-            println!("-->{}", caps.get(0).map(|m| m.as_str()).unwrap_or(""));
+            // caps.iter().for_each(|x| {
+            //     print!("{:?}", x);
+            // });
+            if let Some(res) = caps
+                .iter()
+                .filter(|m_o| {
+                    if let Some(m) = m_o {
+                        return m.as_str().contains('=');
+                    }
+                    false
+                })
+                .next()
+            {
+                if res.is_none() {
+                    continue;
+                }
+                let equation = res.unwrap().as_str();
+                if let Some(eq_pos) = equation.find('=') {
+                    let lhs = equation[..eq_pos].to_string();
+                    let rhs = equation
+                        .chars()
+                        .skip(eq_pos + 1)
+                        .collect::<String>()
+                        .trim()
+                        .to_string();
+
+                    println!("lhs:{}, rhs:{}", lhs, rhs);
+                }
+            }
             println!();
         }
     }
@@ -324,17 +359,48 @@ pub fn language_file_walk(file_path: &String) -> Option<bool> {
     }
     for f in funs_regex {
         for caps in f.captures_iter(&file_text) {
-            let return_type = caps.get(1).map(|m| m.as_str()).unwrap_or("");
-            let function_name = caps.get(2).map(|m| m.as_str()).unwrap_or("");
-            let arguments = caps.get(3).map(|m| m.as_str()).unwrap_or("");
-
-            println!("Function Name: {}", function_name);
-            println!("  Return Type: {}", return_type);
-            if !arguments.is_empty() {
-                println!("  Arguments: {}", arguments);
-            } else {
-                println!("  Arguments: None");
-            }
+            let mut def: String = String::new();
+            caps.iter().for_each(|x| {
+                if let Some(m) = x {
+                    if def.len() < m.as_str().len() {
+                        def = m.as_str().to_string();
+                    }
+                }
+            });
+            let bo_pos = def.find("(").unwrap();
+            let bc_pos = def.rfind(")").unwrap();
+            let type_and_name = def[..bo_pos].to_string();
+            let type_name_separator_pos = type_and_name.rfind(" ").unwrap();
+            let (type_, name) = (
+                type_and_name[..type_name_separator_pos].to_string(),
+                type_and_name[type_name_separator_pos + 1..].to_string(),
+            );
+            let inside_b = def[bo_pos + 1..bc_pos].to_string();
+            let mut comma_pos = Vec::new();
+            inside_b.chars().enumerate().for_each(|(i, c)| {
+                if c == ',' {
+                    comma_pos.push(i);
+                }
+            });
+            let mut args_type_and_names = Vec::new();
+            let mut prev_comma_pos = 0 as usize;
+            comma_pos.iter().for_each(|p| {
+                args_type_and_names.push(inside_b[prev_comma_pos..p.clone()].trim().to_string());
+                prev_comma_pos = p + 1;
+            });
+            args_type_and_names.push(inside_b[prev_comma_pos..].trim().to_string());
+            print!(
+                "fun:{} return:{}, with args:{:?}",
+                name, type_, args_type_and_names
+            );
+            println!();
+        }
+    }
+    for i in interfaces_regex {
+        for caps in i.captures_iter(&file_text) {
+            caps.iter().for_each(|m| {
+                print!("{:?}", m);
+            });
             println!();
         }
     }

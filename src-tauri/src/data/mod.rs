@@ -1,8 +1,11 @@
 mod data_types;
+mod regex_access_child;
 mod regex_assignments;
 mod regex_class;
 mod regex_fun;
 mod regex_interface;
+#[macro_use]
+pub mod regex_macros;
 mod regex_object;
 
 use std::path::Path;
@@ -30,6 +33,10 @@ fn get_data_for_extension<'a>(
 
 pub fn get_data_types(file_path: &String) -> Option<&&[&str]> {
     get_data_for_extension(file_path, &data_types::DATA_TYPES).1
+}
+
+pub fn get_regex_access_child(file_path: &String) -> (Option<&str>, Option<&&[&str]>) {
+    get_data_for_extension(file_path, &regex_access_child::ACCESS_CHILD)
 }
 
 pub fn get_regex_assignments(file_path: &String) -> (Option<&str>, Option<&&[&str]>) {
