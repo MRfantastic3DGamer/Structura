@@ -4,6 +4,7 @@ mod regex_assignments;
 mod regex_class;
 mod regex_fun;
 mod regex_interface;
+mod regex_lambda;
 #[macro_use]
 pub mod regex_macros;
 mod regex_object;
@@ -51,8 +52,12 @@ pub fn get_regex_fun(file_path: &String) -> (Option<&str>, Option<&&[&str]>) {
     get_data_for_extension(file_path, &regex_fun::FUNCTION)
 }
 
-pub fn get_regex_interface(file_path: &String) -> (Option<&str>, Option<&&[&str]>) {
-    get_data_for_extension(file_path, &regex_interface::INTERFACE)
+// pub fn get_regex_interface(file_path: &String) -> (Option<&str>, Option<&&[&str]>) {
+//     get_data_for_extension(file_path, &regex_interface::INTERFACE)
+// }
+
+pub fn get_regex_lambda(file_path: &String) -> (Option<&str>, Option<&&[&str]>) {
+    get_data_for_extension(file_path, &regex_lambda::LAMBDA)
 }
 
 pub fn get_regex_object(file_path: &String) -> (Option<&str>, Option<&&[&str]>) {

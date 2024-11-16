@@ -1,6 +1,6 @@
 use std::str;
 
-use crate::tag_entry::file_walk::language_file_walk;
+use crate::tag_entry::file_walk::language_file_intense_extract;
 use serde_json::json;
 use tauri::Runtime;
 
@@ -62,9 +62,9 @@ async fn request_project_structure<R: Runtime>(
         }
     }
 
-    println!("\n\n------ regex test ------\n\n");
+    println!("\n\n------ intense extract ------\n\n");
     for f_p in all_files {
-        language_file_walk(f_p);
+        language_file_intense_extract(f_p);
     }
 }
 #[tauri::command]
