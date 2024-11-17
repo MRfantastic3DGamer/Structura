@@ -5,6 +5,7 @@ use crate::data::{
     get_regex_lambda, get_regex_object,
 };
 use regex::Regex;
+use std::fmt;
 use std::{
     fs::{self, File},
     io::{self, BufRead},
@@ -12,6 +13,90 @@ use std::{
     u128,
 };
 
+/// start, end, parent
+struct SCOPE(usize, usize, usize);
+impl fmt::Display for SCOPE {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "----------------------------------------------------\n\t({})<-->({})\n\t||parent:{}",
+            self.0, self.1, self.2
+        )
+    }
+}
+/// start, (access rout)
+struct CHILDACCESS(usize, Vec<String>);
+
+impl fmt::Display for CHILDACCESS {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "----------------------------------------------------\n\tstart:{}\n\taccess route:{:?}",
+            self.0, self.1
+        )
+    }
+}
+
+/// lhs(start, str), rhs(start, str)
+struct EQUATION((usize, String), (usize, String));
+
+impl fmt::Display for EQUATION {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "----------------------------------------------------\n\t({}){} =({}){}",
+            (self.0).0,
+            (self.0).1,
+            (self.1).0,
+            (self.1).1
+        )
+    }
+}
+
+/// scope, name, [(parent_scope, parents)]
+struct CLASS(Option<usize>, String, Vec<(String, String)>);
+
+impl fmt::Display for CLASS {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "----------------------------------------------------\n\t{1} : {2:?}\n\t||scope:{0:?}",
+            self.0, self.1, self.2
+        )
+    }
+}
+
+/// scope, name, return_type, [args]
+struct FUNCTION(Option<usize>, String, String, Vec<(String, String)>);
+
+impl fmt::Display for FUNCTION {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "----------------------------------------------------\n\t{0}||name:{1}||({2:?})\n\t||scope:{3:?}", self.2, self.1, self.3, self.0)
+    }
+}
+
+/// scope, [imports as args], [args]
+struct LAMBDA(Option<usize>, Vec<(String, String)>, Vec<(String, String)>);
+
+impl fmt::Display for LAMBDA {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "----------------------------------------------------\n\tscope:{:?}\n\timports as args:{:?}\n\targs:{:?}",
+               self.0, self.1, self.2)
+    }
+}
+
+/// parent_scope, name, type
+struct OBJECT(usize, String, String);
+
+impl fmt::Display for OBJECT {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "----------------------------------------------------\n\t{2}|| {1}\n\t||parent:{0}",
+            self.0, self.1, self.2
+        )
+    }
+}
 macro_rules! build_regex_vec_from_res {
     ($res:expr) => {{
         let (_, regex_res) = $res;
@@ -305,17 +390,16 @@ pub fn language_file_intense_extract(file_path: &String) -> Option<bool> {
     // scopes evaluation
 
     // start, end, parent
-    let mut scope_entries: Vec<[usize; 3]> = Vec::new();
+    let mut scope_entries: Vec<SCOPE> = Vec::new();
     let mut scope_stack: Vec<usize> = Vec::new();
     // region create file level scope
 
-    scope_entries.push([0, 0, usize::MAX]);
+    scope_entries.push(SCOPE(0, 0, usize::MAX));
     scope_stack.push(0);
-    // endregion
 
     for (c_i, c) in file_text.chars().enumerate() {
         if c == '{' {
-            scope_entries.push([
+            scope_entries.push(SCOPE(
                 c_i,
                 0,
                 if let Some(&parent_idx) = scope_stack.last() {
@@ -323,24 +407,19 @@ pub fn language_file_intense_extract(file_path: &String) -> Option<bool> {
                 } else {
                     usize::MAX
                 },
-            ]);
+            ));
             let new_scope_idx = scope_entries.len() - 1;
             scope_stack.push(new_scope_idx);
         } else if c == '}' {
             if let Some(scope_idx) = scope_stack.pop() {
                 // Update the end char idx for the last scope on the stack
-                scope_entries[scope_idx][1] = c_i;
+                scope_entries[scope_idx].1 = c_i;
             } else {
-                println!("Unmatched closing brace at {}", c_i);
+                eprintln!("Unmatched closing brace at {}", c_i);
             }
         }
     }
     drop(scope_stack);
-
-    println!("Scopes");
-    scope_entries
-        .iter()
-        .for_each(|x| println!("start:{}, end:{}, parent{}", x[0], x[1], x[2]));
 
     // -------------------------------------------------------------------------------------------------------//
     // MATCHING ALL THE PATTERNS TO NARROW DOWN SEARCH FOR ALL THE THINGS
@@ -353,19 +432,29 @@ pub fn language_file_intense_extract(file_path: &String) -> Option<bool> {
     let lambdas_regex = build_regex_vec_from_res!(get_regex_lambda(file_path));
     let objs_regex = build_regex_vec_from_res!(get_regex_object(file_path));
 
+    // println!("finding access children");
+    let mut access_children_entries: Vec<CHILDACCESS> = Vec::new();
     for a in access_children_regex {
         for caps in a.find_iter(&file_text) {
-            println!("{}", caps.as_str());
+            let re = regex::Regex::new(r"\.|->").unwrap();
+            let access_rout = re
+                .split(caps.as_str().trim())
+                .map(|s| s.to_string())
+                .collect();
+            let res = CHILDACCESS(caps.start(), access_rout);
+            access_children_entries.push(res);
         }
         println!();
     }
-    println!("assignments");
+    // println!("finding equations");
+    let mut equation_entries: Vec<EQUATION> = Vec::new();
     for a in assignments_regex {
         // println!("for regex:{}", a.as_str());
         for caps in a.captures_iter(&file_text) {
             // caps.iter().for_each(|x| {
             //     print!("{:?}", x);
             // });
+            println!();
             if let Some(res) = caps
                 .iter()
                 .filter(|m_o| {
@@ -383,30 +472,53 @@ pub fn language_file_intense_extract(file_path: &String) -> Option<bool> {
                 let equation = eq_match.as_str();
                 if let Some(eq_pos) = equation.find('=') {
                     let lhs = equation[..eq_pos].to_string();
-                    let rhs = equation
+                    let rhs_with_colon = equation
                         .chars()
                         .skip(eq_pos + 1)
                         .collect::<String>()
                         .trim()
                         .to_string();
+                    let rhs = rhs_with_colon[..rhs_with_colon.len() - 1]
+                        .trim()
+                        .to_string();
                     let mut parent_scope = 0;
                     let def_start_pos = eq_match.start();
                     for (s_i, s) in scope_entries.iter().enumerate() {
-                        if def_start_pos > s[0] && s[0] > scope_entries[parent_scope][0] {
+                        if def_start_pos > s.0 && s.0 > scope_entries[parent_scope].0 {
                             parent_scope = s_i;
                         }
                     }
-                    println!("lhs:{}, rhs:{}, inside:({})", lhs, rhs, parent_scope);
+                    let mut accessed_lhs: Option<usize> = None;
+                    let mut accessed_rhs: Option<usize> = None;
+                    let rhs_offset = equation.find(&rhs_with_colon).unwrap();
+                    access_children_entries
+                        .iter()
+                        .enumerate()
+                        .for_each(|(i, x)| {
+                            if x.0 == eq_match.start() {
+                                accessed_lhs = Some(i);
+                            }
+                            if x.0 == eq_match.start() + rhs_offset {
+                                accessed_rhs = Some(i);
+                            }
+                        });
+                    equation_entries.push(EQUATION(
+                        (eq_match.start(), lhs),
+                        (eq_match.start() + rhs_offset, rhs),
+                    ));
                 }
             }
-            println!();
         }
     }
-    println!("classes");
+    // println!("finding classes");
+    let mut class_entries: Vec<CLASS> = Vec::new();
     for c in class_regex {
         for caps in c.captures_iter(&file_text) {
             // caps.iter().for_each(|x| print!("{x:?}"));
             if let Some(class_def_m) = &caps.get(0) {
+                let mut class_name = "".to_string();
+                let mut class_parents = vec![];
+
                 let class_def = class_def_m.as_str();
                 if let Some(parents_def_pos) = class_def.find(':') {
                     let class_part = class_def[..parents_def_pos]
@@ -414,35 +526,13 @@ pub fn language_file_intense_extract(file_path: &String) -> Option<bool> {
                         .strip_prefix("class")
                         .unwrap()
                         .to_string();
-                    println!("{}", class_part);
-                    let class_parents = &caps.get(1).map(|m| m.as_str()).unwrap_or("");
-                    let mut comma_pos = Vec::new();
-                    class_parents.chars().enumerate().for_each(|(i, c)| {
-                        if c == ',' {
-                            comma_pos.push(i);
-                        }
-                    });
-                    let mut parent_type_and_names = Vec::new();
-                    let mut prev_comma_pos = 0 as usize;
-                    comma_pos.iter().for_each(|p| {
-                        parent_type_and_names
-                            .push(class_parents[prev_comma_pos..p.clone()].trim().to_string());
-                        prev_comma_pos = p + 1;
-                    });
-                    parent_type_and_names.push(class_parents[prev_comma_pos..].trim().to_string());
-                    let mut parents: Vec<[String; 2]> = Vec::new();
-                    parent_type_and_names.iter().for_each(|t_n| {
-                        if let Some(sep_pos) = t_n.rfind(' ') {
-                            let arg_type = t_n[..sep_pos].trim().to_string();
-                            let arg_name = t_n[sep_pos + 1..].trim().to_string();
-                            parents.push([arg_type, arg_name]);
-                        }
-                    });
-                    print!("  parents: {:?}", parents);
+                    class_name = class_part;
+                    let c_parents = &caps.get(1).map(|m| m.as_str()).unwrap_or("");
+                    class_parents = extract_args(c_parents.to_string());
                 } else {
                     let class_part = class_def[..class_def.len() - 1].trim().to_string();
-                    if let Some(class_name) = class_part.strip_prefix("class") {
-                        print!("{} with no parents", class_name.trim().to_string());
+                    if let Some(c_name) = class_part.strip_prefix("class") {
+                        class_name = c_name.trim().to_string();
                     }
                 }
 
@@ -450,21 +540,21 @@ pub fn language_file_intense_extract(file_path: &String) -> Option<bool> {
                 let class_scope = scope_entries
                     .iter()
                     .enumerate()
-                    .filter(|(_, x)| x[0] == scope_start_pos - 1)
+                    .filter(|(_, x)| x.0 == scope_start_pos - 1)
                     .find_map(|x| {
-                        if x.1[0] == scope_start_pos - 1 {
+                        if x.1 .0 == scope_start_pos - 1 {
                             return Some(x.0);
                         }
                         None
                     });
-                println!("with scope as ({:?})", class_scope);
+                class_entries.push(CLASS(class_scope, class_name, class_parents));
             } else {
                 // eprintln!("couldn't parse for class\n{}", )
             }
-            println!();
         }
     }
-    println!("functions");
+    // println!("finding functions");
+    let mut function_entries: Vec<FUNCTION> = Vec::new();
     for f in funs_regex {
         // println!("regex {}", f.as_str());
         for caps in f.captures_iter(&file_text) {
@@ -487,37 +577,16 @@ pub fn language_file_intense_extract(file_path: &String) -> Option<bool> {
                         type_and_name[type_name_separator_pos + 1..].to_string(),
                     );
                     let inside_b = def[bo_pos + 1..bc_pos].to_string();
-                    let mut comma_pos = Vec::new();
-                    inside_b.chars().enumerate().for_each(|(i, c)| {
-                        if c == ',' {
-                            comma_pos.push(i);
-                        }
-                    });
-                    let mut args_type_and_names = Vec::new();
-                    let mut prev_comma_pos = 0 as usize;
-                    comma_pos.iter().for_each(|p| {
-                        args_type_and_names
-                            .push(inside_b[prev_comma_pos..p.clone()].trim().to_string());
-                        prev_comma_pos = p + 1;
-                    });
-                    args_type_and_names.push(inside_b[prev_comma_pos..].trim().to_string());
-                    let mut args: Vec<[String; 2]> = Vec::new();
-                    args_type_and_names.iter().for_each(|t_n| {
-                        if let Some(sep_pos) = t_n.rfind(' ') {
-                            let arg_type = t_n[..sep_pos].trim().to_string();
-                            let arg_name = t_n[sep_pos + 1..].trim().to_string();
-                            args.push([arg_type, arg_name]);
-                        }
-                    });
+                    let args: Vec<(String, String)> = extract_args(inside_b);
 
                     let scope_start_pos = m.end();
 
                     let fun_scope = scope_entries
                         .iter()
                         .enumerate()
-                        .filter(|(_, x)| x[0] == scope_start_pos - 1)
+                        .filter(|(_, x)| x.0 == scope_start_pos - 1)
                         .find_map(|x| {
-                            if x.1[0] == scope_start_pos - 1 {
+                            if x.1 .0 == scope_start_pos - 1 {
                                 return Some(x.0);
                             }
                             None
@@ -526,11 +595,7 @@ pub fn language_file_intense_extract(file_path: &String) -> Option<bool> {
                     // .collect::<Vec<usize>>()
                     // .get(0)
                     // .unwrap_or(&usize::MAX);
-                    print!(
-                        "fun:{} return:{}, with args:{:?}, and scope as ({:?})",
-                        name, type_, args, fun_scope
-                    );
-                    println!();
+                    function_entries.push(FUNCTION(fun_scope, name, type_, args));
                 }
             });
         }
@@ -544,16 +609,37 @@ pub fn language_file_intense_extract(file_path: &String) -> Option<bool> {
     //         println!();
     //     }
     // }
-    println!("lambdas");
+    // println!("finding lambdas");
+    let mut lambda_entries: Vec<LAMBDA> = Vec::new();
     for l in lambdas_regex {
         for caps in l.captures_iter(&file_text) {
-            caps.iter().for_each(|m| {
-                print!("{:?}", m);
-            });
-            println!();
+            if let Some(def_match) = caps.get(0) {
+                let def_str = def_match.as_str();
+                let imports_end_pos = def_str.find("]").unwrap();
+                let imports_str = def_str[1..imports_end_pos].to_string();
+                let imports = extract_args(imports_str);
+                let args_start_pos = def_str.find("(").unwrap();
+                let args_end_pos = def_str.rfind(")").unwrap();
+                let args_str = def_str[args_start_pos + 1..args_end_pos].to_string();
+                let args = extract_args(args_str);
+
+                let scope_start_pos = def_match.end();
+                let fun_scope = scope_entries
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, x)| x.0 == scope_start_pos - 1)
+                    .find_map(|x| {
+                        if x.1 .0 == scope_start_pos - 1 {
+                            return Some(x.0);
+                        }
+                        None
+                    });
+                lambda_entries.push(LAMBDA(fun_scope, imports, args));
+            }
         }
     }
-    println!("objects");
+    // println!("finding objects");
+    let mut object_entries: Vec<OBJECT> = Vec::new();
     for o in objs_regex {
         for caps in o.captures_iter(&file_text) {
             let obj_class = &caps.get(1).map(|m| m.as_str()).unwrap_or("");
@@ -561,17 +647,59 @@ pub fn language_file_intense_extract(file_path: &String) -> Option<bool> {
             let mut parent_scope = 0;
             let def_start_pos = &caps.get(1).unwrap().start();
             for (s_i, s) in scope_entries.iter().enumerate() {
-                if *def_start_pos > s[0] && s[0] > scope_entries[parent_scope][0] {
+                if *def_start_pos > s.0 && s.0 > scope_entries[parent_scope].0 {
                     parent_scope = s_i;
                 }
             }
-            println!(
-                "object Class: {} , name: {} inside: {}",
-                obj_class, obj_name, parent_scope
-            );
-            println!();
+            object_entries.push(OBJECT(
+                parent_scope,
+                obj_name.to_string(),
+                obj_class.to_string(),
+            ));
         }
     }
 
+    log_entries("scopes", &scope_entries);
+    log_entries("accessing children", &access_children_entries);
+    log_entries("equations", &equation_entries);
+    log_entries("classes", &class_entries);
+    log_entries("functions", &function_entries);
+    log_entries("lambdas", &lambda_entries);
+    log_entries("objects", &object_entries);
     Some(true)
+}
+
+fn extract_args(args_str: String) -> Vec<(String, String)> {
+    let mut comma_pos = Vec::new();
+    args_str.chars().enumerate().for_each(|(i, c)| {
+        if c == ',' {
+            comma_pos.push(i);
+        }
+    });
+    let mut prev_comma_pos = 0 as usize;
+    let mut args_type_and_names = Vec::new();
+    comma_pos.iter().for_each(|p| {
+        args_type_and_names.push(args_str[prev_comma_pos..p.clone()].trim().to_string());
+        prev_comma_pos = p + 1;
+    });
+    args_type_and_names.push(args_str[prev_comma_pos..].trim().to_string());
+    let mut args: Vec<(String, String)> = Vec::new();
+    args_type_and_names.iter().for_each(|t_n| {
+        if let Some(sep_pos) = t_n.rfind(' ') {
+            let arg_type = t_n[..sep_pos].trim().to_string();
+            let arg_name = t_n[sep_pos + 1..].trim().to_string();
+            args.push((arg_type, arg_name));
+        }
+    });
+    args
+}
+
+fn log_entries<T: fmt::Display>(label: &str, entries: &Vec<T>) {
+    // println!();
+    println!("{}", label);
+    entries.iter().enumerate().for_each(|(i, entry)| {
+        print!("({i})");
+        println!("{}", entry);
+    });
+    println!("=======================================================");
 }

@@ -21,7 +21,7 @@ damage	D:\Development\Projects\MapMyProject\Test\TestFiles\src\Alive.cpp	/^    i
 display	D:\Development\Projects\MapMyProject\Test\TestFiles\src\Counter.cpp	/^    void display() {$/;"	f	class:Counter
 getAge	D:\Development\Projects\MapMyProject\Test\TestFiles\src\Mammal.cpp	/^    int getAge(int currentYear) const {$/;"	f	class:Mammal
 getSpeed	D:\Development\Projects\MapMyProject\Test\TestFiles\src\Reptiles.cpp	/^    float getSpeed(int eagerness, float m, int var3){$/;"	f	class:Reptiles
-give_homework	D:\Development\Projects\MapMyProject\Test\TestFiles\src\animals\Human.cpp	/^    void give_homework(const std::function<void (int)>& hw) {$/;"	f	class:Human
+give_homework	D:\Development\Projects\MapMyProject\Test\TestFiles\src\animals\Human.cpp	/^    void give_homework(const std::function<void (int, int)>& hw) {$/;"	f	class:Human
 health	D:\Development\Projects\MapMyProject\Test\TestFiles\src\Alive.cpp	/^    int health;$/;"	m	class:Alive	file:
 main	D:\Development\Projects\MapMyProject\Test\TestFiles\src\main.cpp	/^int main() {$/;"	f
 mam	D:\Development\Projects\MapMyProject\Test\TestFiles\src\Mammal.cpp	/^    int mam;$/;"	m	class:Mammal	file:
