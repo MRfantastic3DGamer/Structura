@@ -12,7 +12,7 @@ use crate::tag_entry::{ClassEntry, FunctionEntry, ObjectEntry, ScopeEntry};
 
 pub fn evaluate_all_hard_data<'a>(
     project_path: &String,
-    all_files: &'a HashSet<&'a String>,
+    all_files: &'a Vec<&'a String>,
     all_hard_data: HashMap<
         &'a String,
         (
@@ -227,9 +227,9 @@ pub fn jsonify_evaluated_data(
     return (imports, tags, children);
 }
 
-fn read_all_imports<'a>(
+pub fn read_all_imports<'a>(
     project_path: &String,
-    all_files: &'a HashSet<&'a String>,
+    all_files: &'a Vec<&'a String>,
 ) -> HashMap<usize, Vec<usize>> {
     let mut all_imports: HashMap<usize, Vec<usize>> = HashMap::new();
 

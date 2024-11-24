@@ -3,6 +3,7 @@ mod regex_access_child;
 mod regex_assignments;
 mod regex_class;
 mod regex_fun;
+mod regex_function_call;
 mod regex_interface;
 mod regex_lambda;
 #[macro_use]
@@ -38,6 +39,10 @@ pub fn get_data_types(file_path: &String) -> Option<&&[&str]> {
 
 pub fn get_regex_access_child(file_path: &String) -> (Option<&str>, Option<&&[&str]>) {
     get_data_for_extension(file_path, &regex_access_child::ACCESS_CHILD)
+}
+
+pub fn get_regex_function_call(file_path: &String) -> (Option<&str>, Option<&&[&str]>) {
+    get_data_for_extension(file_path, &regex_function_call::FUNCTION_CALL)
 }
 
 pub fn get_regex_assignments(file_path: &String) -> (Option<&str>, Option<&&[&str]>) {

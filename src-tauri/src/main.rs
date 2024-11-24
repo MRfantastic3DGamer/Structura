@@ -1,11 +1,10 @@
-use std::str;
-
-use crate::tag_entry::file_walk::language_file_intense_extract;
 use serde_json::json;
+use std::str;
 use tauri::Runtime;
 
 mod data;
 mod evaluate_imports;
+mod intense_evaluation;
 mod tag_entry;
 
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
@@ -36,7 +35,9 @@ async fn request_project_structure<R: Runtime>(
         Err(_) => Vec::new(),
     };
     // F
-    let all_files = tag_entry::get_all_files(&tags_result);
+    let all_files = tag_entry::get_all_files(&tags_result)
+        .into_iter()
+        .collect::<Vec<&String>>();
     let hard_data =
         tag_entry::get_all_hard_data(&all_files, &tags_result, emit_process_progress_status).await;
     let (raw_imports, all_tags, children_tags) = evaluate_imports::evaluate_all_hard_data(
@@ -63,9 +64,10 @@ async fn request_project_structure<R: Runtime>(
     }
 
     println!("\n\n------ intense extract ------\n\n");
-    for f_p in all_files {
-        language_file_intense_extract(f_p);
-    }
+    intense_evaluation::evaluate(&project_path, &all_files);
+    // for f_p in all_files {
+    //     language_file_intense_extract(f_p);
+    // }
 }
 #[tauri::command]
 fn save_project_structure(_tags_path: &str) {}

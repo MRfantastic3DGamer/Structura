@@ -20,6 +20,20 @@ macro_rules! or {
 }
 
 #[macro_export]
+macro_rules! either_or {
+    ($first:expr $(, $rest:expr)*) => {
+        concat!("(", $first $(, "|", $rest)*, ")")
+    };
+}
+
+#[macro_export]
+macro_rules! in_bracket {
+    ($($item:expr),+) => {
+        concat!(r"\(", $($item),+, r"\)")
+    };
+}
+
+#[macro_export]
 macro_rules! anything_inside_brackets {
     () => {
         r"\([^)(]*\)"

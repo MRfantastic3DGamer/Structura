@@ -118,7 +118,7 @@ pub fn get_all_files<'a>(tags: &'a Vec<TagEntry>) -> HashSet<&'a String> {
 }
 
 pub async fn get_all_hard_data<'a>(
-    all_files: &'a HashSet<&'a String>,
+    all_files: &'a Vec<&'a String>,
     all_tags: &'a Vec<TagEntry>,
     progress_indication: impl Fn(&str, u8),
 ) -> HashMap<
