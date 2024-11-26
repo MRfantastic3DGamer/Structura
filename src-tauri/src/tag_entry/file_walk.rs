@@ -21,7 +21,6 @@ pub fn file_walk(
     res
 }
 
-// TODO: note the section after = as its own scope
 fn brackets_walk(
     file_path: &String,
     tags: &Vec<&TagEntry>,
@@ -74,7 +73,6 @@ fn brackets_walk(
             // todo: also look for if else elif switch etc
 
             if line_content.find(&t.reg_ex).is_some() {
-                // TODO:search for all the data types first
                 let class_name_regex = Regex::new(r"(\w+) ").unwrap();
 
                 let class_name = match class_name_regex.captures(&line_content) {

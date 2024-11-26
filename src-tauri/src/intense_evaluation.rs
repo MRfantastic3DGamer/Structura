@@ -2,6 +2,7 @@ use crate::{data::*, evaluate_imports::read_all_imports};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
+use std::usize;
 use std::{collections::HashMap, fmt, fs};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -26,7 +27,6 @@ impl StatefulClassConnection {
         false
     }
 }
-
 pub struct ClassConnectable {
     file: usize,
     scope: usize,
@@ -47,26 +47,32 @@ pub struct FUNCTIONCALL(usize, String, usize);
 pub struct EQUATION((usize, String), (usize, String));
 
 /// scope, name, [(parent_scope, parents)]
-pub struct CLASS(Option<usize>, String, Vec<(String, String)>);
+pub struct CLASS(usize, String, Vec<(String, String)>);
 
 /// scope, name, return_type, [args], name_pos
-pub struct FUNCTION(Option<usize>, String, String, Vec<(String, String)>, usize);
+pub struct FUNCTION(usize, String, String, Vec<(String, String)>, usize);
 
 /// scope, [imports as args], [args]
-pub struct LAMBDA(Option<usize>, Vec<(String, String)>, Vec<(String, String)>);
+pub struct LAMBDA(usize, Vec<(String, String)>, Vec<(String, String)>);
 
 /// parent_scope, name, type
 pub struct OBJECT(usize, String, String);
 
-pub trait ClassesConnector {
-    fn connect_classes(&mut self, _file_path: &String) {}
+impl CHILDACCESS {}
+impl CLASS {}
+impl FUNCTION {
+    /// name, return_type, args_types
+    pub fn get_signature(&self) -> (&String, &String, Vec<String>) {
+        return (
+            &self.1,
+            &self.2,
+            self.3.iter().map(|x| x.0.clone()).collect(),
+        );
+    }
 }
-
-impl ClassesConnector for CHILDACCESS {}
-impl ClassesConnector for CLASS {}
-impl ClassesConnector for FUNCTION {}
-impl ClassesConnector for LAMBDA {}
-impl ClassesConnector for OBJECT {}
+impl FUNCTIONCALL {}
+impl LAMBDA {}
+impl OBJECT {}
 
 macro_rules! build_regex_vec_from_res {
     ($res:expr) => {{
@@ -101,7 +107,7 @@ pub fn evaluate(project_path: &String, all_files: &Vec<&String>) {
         }
     }
 
-    create_scope_availability(project_path, all_files, &intense_info)
+    let scoped_data = create_scope_availability(project_path, all_files, &intense_info);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////
@@ -168,7 +174,7 @@ fn language_file_intense_extract(
     }
     drop(scope_stack);
     let scopes_len = scope_entries.len();
-    for i in (0..scopes_len) {
+    for i in 0..scopes_len {
         let s = scope_entries.get(i).unwrap();
         scope_entries[i].4 = file_text[s.0 + 1..s.1].chars().collect();
     }
@@ -285,7 +291,8 @@ fn language_file_intense_extract(
                             return Some(x.0);
                         }
                         None
-                    });
+                    })
+                    .unwrap();
                 class_entries.push(CLASS(class_scope, class_name, class_parents));
             } else {
                 // eprintln!("couldn't parse for class\n{}", )
@@ -328,7 +335,8 @@ fn language_file_intense_extract(
                                 return Some(x.0);
                             }
                             None
-                        });
+                        })
+                        .unwrap();
                     function_entries.push(FUNCTION(
                         fun_scope,
                         name,
@@ -363,7 +371,8 @@ fn language_file_intense_extract(
                             return Some(x.0);
                         }
                         None
-                    });
+                    })
+                    .unwrap();
                 lambda_entries.push(LAMBDA(fun_scope, imports, args));
             }
         }
@@ -397,14 +406,20 @@ fn language_file_intense_extract(
     let mut object_entries: Vec<OBJECT> = Vec::new();
     for o in objs_regex {
         for caps in o.captures_iter(&file_text) {
-            let obj_class = &caps.get(1).map(|m| m.as_str()).unwrap_or("");
-            let obj_name = &caps.get(2).map(|m| m.as_str()).unwrap_or("");
-            let parent_scope = find_parent(caps.get(1).unwrap().start().clone(), &scope_entries);
-            object_entries.push(OBJECT(
-                parent_scope,
-                obj_name.to_string(),
-                obj_class.to_string(),
-            ));
+            if let Some(_match) = caps.get(0) {
+                let match_str = _match.as_str()[.._match.as_str().len() - 1]
+                    .trim()
+                    .to_string();
+                if let Some(type_name_space_pos) = match_str.rfind(" ") {
+                    let type_str = match_str[..type_name_space_pos].trim().to_string();
+                    if type_str == "public".to_string() || type_str == "private".to_string() {
+                        continue;
+                    }
+                    let name = match_str[type_name_space_pos..].trim().to_string();
+                    let parent_scope = find_parent(&_match.start(), &scope_entries);
+                    object_entries.push(OBJECT(parent_scope, name, type_str));
+                }
+            }
         }
     }
 
@@ -453,10 +468,10 @@ fn extract_args(args_str: String) -> Vec<(String, String)> {
     args
 }
 
-fn find_parent(start_pos: usize, scope_entries: &Vec<SCOPE>) -> usize {
+fn find_parent(start_pos: &usize, scope_entries: &Vec<SCOPE>) -> usize {
     let mut parent_scope = 0;
     for (s_i, s) in scope_entries.iter().enumerate() {
-        if start_pos > s.0 && s.0 > scope_entries[parent_scope].0 {
+        if *start_pos > s.0 && s.0 > scope_entries[parent_scope].0 {
             parent_scope = s_i;
         }
     }
@@ -480,6 +495,10 @@ pub fn create_scope_availability(
         Vec<LAMBDA>,
         Vec<OBJECT>,
     )>,
+) -> (
+    HashMap<usize, Vec<(String, usize)>>,
+    HashMap<usize, HashMap<usize, Vec<(usize, usize)>>>,
+    HashMap<usize, HashMap<usize, HashMap<String, StatefulClassConnection>>>,
 ) {
     // file -> [files]
     let imported_files: HashMap<usize, Vec<usize>> = read_all_imports(project_path, all_files);
@@ -490,20 +509,21 @@ pub fn create_scope_availability(
     > = HashMap::new();
     // file -> scope -> [(file, scope)]
     let mut accessible_scopes: HashMap<usize, HashMap<usize, Vec<(usize, usize)>>> = HashMap::new();
-    // file -> [class_name]
-    let mut custom_classes: HashMap<usize, Vec<String>> = HashMap::new();
+    // file -> [(class_name, scope)]
+    let mut custom_classes: HashMap<usize, Vec<(String, usize)>> = HashMap::new();
 
     let mut scope_parents: HashMap<usize, HashMap<usize, Vec<(usize, usize)>>> = HashMap::new();
-    for (file, (scopes, _, _, classes, functions, function_calls, lambdas, objects)) in
+
+    for (file, (scopes, _, _, classes, functions, _, lambdas, objects)) in
         files_data.iter().enumerate()
     {
         for c in classes {
-            let c_scope = c.0.unwrap();
+            let c_scope = c.0;
             let c_p_scope = scopes[c_scope].2;
             custom_classes
                 .entry(file)
                 .or_insert_with(Vec::new)
-                .push(c.1.clone());
+                .push((c.1.clone(), c.0));
 
             scoped_connectable_s
                 .entry(file)
@@ -516,7 +536,14 @@ pub fn create_scope_availability(
                 );
         }
         for f in functions {
-            let f_scope = f.0.unwrap();
+            let f_scope = f.0;
+            let f_vars_scope = find_next_scope(&f.4, scopes);
+            accessible_scopes
+                .entry(file)
+                .or_insert_with(HashMap::new)
+                .entry(f_scope)
+                .or_insert_with(Vec::new)
+                .push((file, f_vars_scope));
             let f_p_scope = scopes[f_scope].2;
             scoped_connectable_s
                 .entry(file)
@@ -540,7 +567,7 @@ pub fn create_scope_availability(
             }
         }
         for f in lambdas {
-            let f_scope = f.0.unwrap();
+            let f_scope = f.0;
 
             for (arg_t, arg) in &f.2 {
                 scoped_connectable_s
@@ -611,6 +638,20 @@ pub fn create_scope_availability(
     log_hashmap("imported files", &imported_files);
     log_nested_hashmap("accessible scopes", &accessible_scopes);
     log_deeply_nested_hashmap("scoped connectable(s)", &scoped_connectable_s);
+
+    return (custom_classes, accessible_scopes, scoped_connectable_s);
+}
+
+fn find_next_scope(pos: &usize, scopes: &Vec<SCOPE>) -> usize {
+    let mut res = 0;
+    let mut res_dist = usize::MAX;
+    for (s_i, s) in scopes.iter().enumerate() {
+        if s.0 > *pos && s.0 - pos < res_dist {
+            res_dist = s.0 - pos;
+            res = s_i;
+        }
+    }
+    return res;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////
@@ -620,26 +661,26 @@ pub fn create_scope_availability(
 impl fmt::Display for SCOPE {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
-            f,
-            "----------------------------------------------------\n\t{3}{0}<-->{1}{4}\n\t||parent:{2} {5}",
-            self.0, self.1, self.2, match self.3 {
-                0 => '(',
-                1 => '{',
-                2 => '[',
-                3 => '.',
-                _ => '!',
-            },match self.3 {
-                3 => '.',
-                2 => ']',
-                1 => '}',
-                0 => ')',
-                _ => '!',
-            },
-            match self.3 {
-                0 => self.4.clone(),
-                _ => "".to_string()
-            }
-        )
+                f,
+                "----------------------------------------------------\n\t{3}{0}<-->{1}{4}\n\t||parent:{2} {5}",
+                self.0, self.1, self.2, match self.3 {
+                    0 => '(',
+                    1 => '{',
+                    2 => '[',
+                    3 => '.',
+                    _ => '!',
+                },match self.3 {
+                    3 => '.',
+                    2 => ']',
+                    1 => '}',
+                    0 => ')',
+                    _ => '!',
+                },
+                match self.3 {
+                    0 => self.4.clone(),
+                    _ => "".to_string()
+                }
+            )
     }
 }
 impl fmt::Display for CHILDACCESS {
@@ -689,7 +730,7 @@ impl fmt::Display for FUNCTIONCALL {
 impl fmt::Display for LAMBDA {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "----------------------------------------------------\n\tscope:{:?}\n\timports as args:{:?}\n\targs:{:?}",
-               self.0, self.1, self.2)
+                self.0, self.1, self.2)
     }
 }
 impl fmt::Display for OBJECT {
