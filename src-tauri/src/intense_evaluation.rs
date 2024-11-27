@@ -8,30 +8,21 @@ use std::{collections::HashMap, fmt, fs};
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum StatefulClassConnection {
     Undiscovered(String),
-    Connected(usize, usize),
-    DataType(usize),
+    Connected(usize, usize, String),
+    DataType(usize, String),
 }
 impl StatefulClassConnection {
-    pub fn connect(&mut self, connectable: ClassConnectable) -> bool {
-        match connectable.connection {
-            Self::Undiscovered(_) => {}
-            Self::Connected(f, t) => {
-                *self = StatefulClassConnection::Connected(f, t);
-                return true;
-            }
-            Self::DataType(t) => {
-                *self = StatefulClassConnection::DataType(t);
-                return true;
-            }
+    fn get_name(&self) -> &String {
+        match self {
+            StatefulClassConnection::Undiscovered(n) => n,
+            StatefulClassConnection::Connected(_, _, n) => n,
+            StatefulClassConnection::DataType(_, n) => n,
         }
-        false
     }
 }
-pub struct ClassConnectable {
-    file: usize,
-    scope: usize,
-    query: String,
-    connection: StatefulClassConnection,
+
+trait Queryable {
+    fn get_query(&self) -> Option<String>;
 }
 
 /// start, end, parent, \[bracket/curly/square/root\], content
@@ -40,8 +31,13 @@ pub struct SCOPE(usize, usize, usize, i8, String);
 /// start, \[access rout, \[args\]\]
 pub struct CHILDACCESS(usize, Vec<(String, Vec<String>)>);
 
-/// start, name, vars_scope
-pub struct FUNCTIONCALL(usize, String, usize);
+/// start, name, vars_scope, vars
+pub struct FUNCTIONCALL(
+    usize,
+    String,
+    usize,
+    Vec<(StatefulClassConnection, Box<dyn Queryable>)>,
+);
 
 /// lhs(start, str), rhs(start, str)
 pub struct EQUATION((usize, String), (usize, String));
@@ -50,26 +46,62 @@ pub struct EQUATION((usize, String), (usize, String));
 pub struct CLASS(usize, String, Vec<(String, String)>);
 
 /// scope, name, return_type, [args], name_pos
-pub struct FUNCTION(usize, String, String, Vec<(String, String)>, usize);
+pub struct FUNCTION(
+    usize,
+    String,
+    String,
+    Vec<(StatefulClassConnection, String)>,
+    usize,
+);
 
 /// scope, [imports as args], [args]
-pub struct LAMBDA(usize, Vec<(String, String)>, Vec<(String, String)>);
+pub struct LAMBDA(
+    usize,
+    Vec<(StatefulClassConnection, String)>,
+    Vec<(StatefulClassConnection, String)>,
+);
 
 /// parent_scope, name, type
 pub struct OBJECT(usize, String, String);
 
-impl CHILDACCESS {}
-impl CLASS {}
-impl FUNCTION {
-    /// name, return_type, args_types
-    pub fn get_signature(&self) -> (&String, &String, Vec<String>) {
-        return (
-            &self.1,
-            &self.2,
-            self.3.iter().map(|x| x.0.clone()).collect(),
-        );
+impl Queryable for CLASS {
+    fn get_query(&self) -> Option<String> {
+        Some(self.1.clone())
     }
 }
+impl Queryable for OBJECT {
+    fn get_query(&self) -> Option<String> {
+        Some(self.1.clone())
+    }
+}
+impl Queryable for FUNCTION {
+    fn get_query(&self) -> Option<String> {
+        let mut q = String::new();
+        q.push_str(self.1.as_str());
+        q.push_str("|");
+        self.3.iter().for_each(|(arg_t, _)| {
+            q.push_str("|");
+            q.push_str(arg_t.get_name().as_str());
+        });
+        Some(q)
+    }
+}
+impl Queryable for FUNCTIONCALL {
+    fn get_query(&self) -> Option<String> {
+        let mut q = String::new();
+        q.push_str(self.1.as_str());
+        q.push_str("|");
+        self.3.iter().for_each(|(arg_t, _)| {
+            q.push_str("|");
+            q.push_str(&arg_t.get_name().as_str());
+        });
+        Some(q)
+    }
+}
+
+impl CHILDACCESS {}
+impl CLASS {}
+impl FUNCTION {}
 impl FUNCTIONCALL {}
 impl LAMBDA {}
 impl OBJECT {}
@@ -107,7 +139,14 @@ pub fn evaluate(project_path: &String, all_files: &Vec<&String>) {
         }
     }
 
-    let scoped_data = create_scope_availability(project_path, all_files, &intense_info);
+    let (imported_files, accessible_scopes, scoped_connectable_s) =
+        create_scope_availability(project_path, all_files, &intense_info);
+    connect_scoped_data(
+        &intense_info,
+        &imported_files,
+        &accessible_scopes,
+        &scoped_connectable_s,
+    );
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////
@@ -273,7 +312,30 @@ fn language_file_intense_extract(
                         .to_string();
                     class_name = class_part.trim().to_string();
                     let c_parents = &caps.get(1).map(|m| m.as_str()).unwrap_or("");
-                    class_parents = extract_args(c_parents.to_string());
+                    let mut comma_pos = Vec::new();
+                    let args_str = c_parents.to_string();
+                    args_str.chars().enumerate().for_each(|(i, c)| {
+                        if c == ',' {
+                            comma_pos.push(i);
+                        }
+                    });
+                    let mut prev_comma_pos = 0 as usize;
+                    let mut args_type_and_names = Vec::new();
+                    comma_pos.iter().for_each(|p| {
+                        args_type_and_names
+                            .push(args_str[prev_comma_pos..p.clone()].trim().to_string());
+                        prev_comma_pos = p + 1;
+                    });
+                    args_type_and_names.push(args_str[prev_comma_pos..].trim().to_string());
+                    let mut args = Vec::new();
+                    args_type_and_names.iter().for_each(|t_n| {
+                        if let Some(sep_pos) = t_n.rfind(' ') {
+                            let arg_type = t_n[..sep_pos].trim().to_string();
+                            let arg_name = t_n[sep_pos + 1..].trim().to_string();
+                            args.push((arg_type, arg_name));
+                        }
+                    });
+                    class_parents = args;
                 } else {
                     let class_part = class_def[..class_def.len() - 1].trim().to_string();
                     if let Some(c_name) = class_part.strip_prefix("class") {
@@ -397,7 +459,7 @@ fn language_file_intense_extract(
                 return None;
             }) {
                 let fn_name = caps.as_str()[..caps.as_str().len() - 1].chars().collect();
-                function_call_entries.push(FUNCTIONCALL(caps.start(), fn_name, vars_scope));
+                function_call_entries.push(FUNCTIONCALL(caps.start(), fn_name, vars_scope, vec![]));
             } else {
                 println!("error in finding vars_scope for query :{:?}", caps);
             }
@@ -443,7 +505,7 @@ fn language_file_intense_extract(
     ))
 }
 
-fn extract_args(args_str: String) -> Vec<(String, String)> {
+fn extract_args(args_str: String) -> Vec<(StatefulClassConnection, String)> {
     let mut comma_pos = Vec::new();
     args_str.chars().enumerate().for_each(|(i, c)| {
         if c == ',' {
@@ -457,12 +519,12 @@ fn extract_args(args_str: String) -> Vec<(String, String)> {
         prev_comma_pos = p + 1;
     });
     args_type_and_names.push(args_str[prev_comma_pos..].trim().to_string());
-    let mut args: Vec<(String, String)> = Vec::new();
+    let mut args = Vec::new();
     args_type_and_names.iter().for_each(|t_n| {
         if let Some(sep_pos) = t_n.rfind(' ') {
             let arg_type = t_n[..sep_pos].trim().to_string();
             let arg_name = t_n[sep_pos + 1..].trim().to_string();
-            args.push((arg_type, arg_name));
+            args.push((StatefulClassConnection::Undiscovered(arg_type), arg_name));
         }
     });
     args
@@ -514,7 +576,7 @@ pub fn create_scope_availability(
 
     let mut scope_parents: HashMap<usize, HashMap<usize, Vec<(usize, usize)>>> = HashMap::new();
 
-    for (file, (scopes, _, _, classes, functions, _, lambdas, objects)) in
+    for (file, (scopes, _, _, classes, functions, function_calls, lambdas, objects)) in
         files_data.iter().enumerate()
     {
         for c in classes {
@@ -532,7 +594,11 @@ pub fn create_scope_availability(
                 .or_insert_with(HashMap::new)
                 .insert(
                     c.1.clone(),
-                    StatefulClassConnection::Connected(file, custom_classes[&file].len() - 1),
+                    StatefulClassConnection::Connected(
+                        file,
+                        custom_classes[&file].len() - 1,
+                        c.1.clone(),
+                    ),
                 );
         }
         for f in functions {
@@ -560,10 +626,7 @@ pub fn create_scope_availability(
                     .or_insert_with(HashMap::new)
                     .entry(f_scope)
                     .or_insert_with(HashMap::new)
-                    .insert(
-                        arg.clone(),
-                        StatefulClassConnection::Undiscovered(arg_t.clone()),
-                    );
+                    .insert(arg.clone(), arg_t.clone());
             }
         }
         for f in lambdas {
@@ -575,10 +638,7 @@ pub fn create_scope_availability(
                     .or_insert_with(HashMap::new)
                     .entry(f_scope)
                     .or_insert_with(HashMap::new)
-                    .insert(
-                        arg.clone(),
-                        StatefulClassConnection::Undiscovered(arg_t.clone()),
-                    );
+                    .insert(arg.clone(), arg_t.clone());
             }
         }
         for o in objects {
@@ -605,6 +665,7 @@ pub fn create_scope_availability(
                 c = scopes.get(c).unwrap().2;
             }
         }
+        for f in function_calls {}
     }
 
     for (file, (scopes, _, _, _, _, _, _, _)) in files_data.iter().enumerate() {
@@ -635,6 +696,51 @@ pub fn create_scope_availability(
     // TODO: evaluate (scopes) and [scopes]
     // for (file, (scopes, access, equation, _, _, _, _, _)) in files_data.iter().enumerate() {}
 
+    let mut temp_class_connections: HashMap<(usize, usize, String), StatefulClassConnection> =
+        HashMap::new();
+    for (file, (scopes, _, _, _, _, _, _, _)) in files_data.iter().enumerate() {
+        let lang_data_types = get_data_types(all_files[file]).unwrap();
+        for (s, _) in scopes.iter().enumerate() {
+            if let Some(scope_queries) = scoped_connectable_s.get(&file).unwrap().get(&s) {
+                for q in scope_queries.keys() {
+                    for (access_f, access_s) in
+                        accessible_scopes.get(&file).unwrap().get(&s).unwrap()
+                    {
+                        let temp = vec![];
+                        let access_classes = custom_classes.get(access_f).unwrap_or(&temp);
+                        if let Some(StatefulClassConnection::Undiscovered(q_name)) =
+                            scope_queries.get(q)
+                        {
+                            if let Some(connection) = get_connected_class(
+                                lang_data_types,
+                                &accessible_scopes,
+                                &scoped_connectable_s,
+                                access_f,
+                                access_s,
+                                q_name,
+                                access_classes,
+                            ) {
+                                temp_class_connections.insert((file, s, q.clone()), connection);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let connectable_classes = temp_class_connections.keys().clone();
+    for key in connectable_classes {
+        let x = temp_class_connections.get(key).unwrap().clone();
+        scoped_connectable_s
+            .entry(key.0)
+            .or_insert_with(HashMap::new)
+            .entry(key.1)
+            .or_insert_with(HashMap::new)
+            .insert(key.2.clone(), x);
+    }
+    drop(temp_class_connections);
+
     log_hashmap("imported files", &imported_files);
     log_nested_hashmap("accessible scopes", &accessible_scopes);
     log_deeply_nested_hashmap("scoped connectable(s)", &scoped_connectable_s);
@@ -652,6 +758,65 @@ fn find_next_scope(pos: &usize, scopes: &Vec<SCOPE>) -> usize {
         }
     }
     return res;
+}
+
+fn get_connected_class(
+    data_types: &&[&str],
+    accessible_scopes: &HashMap<usize, HashMap<usize, Vec<(usize, usize)>>>,
+    scoped_connectable_s: &HashMap<usize, HashMap<usize, HashMap<String, StatefulClassConnection>>>,
+    file: &usize,
+    scope: &usize,
+    query: &String,
+    file_classes: &Vec<(String, usize)>,
+) -> Option<StatefulClassConnection> {
+    for (i, dt) in data_types.iter().enumerate() {
+        if *query == **dt {
+            return Some(StatefulClassConnection::DataType(i, dt.to_string()));
+        }
+    }
+    if let Some(class_pos) =
+        file_classes
+            .iter()
+            .find_map(|x| if x.0 == *query { Some(x) } else { None })
+    {
+        for (access_f, access_s) in accessible_scopes.get(file).unwrap().get(scope).unwrap() {
+            if let Some(file_queries) = scoped_connectable_s.get(access_f) {
+                if let Some(scope_queries) = file_queries.get(access_s) {
+                    for q in scope_queries.keys() {
+                        if q == query {
+                            return Some(StatefulClassConnection::Connected(
+                                access_f.clone(),
+                                class_pos.1,
+                                query.clone(),
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////
+/// DATA CONNECTION /////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////
+
+fn connect_scoped_data(
+    files_data: &Vec<(
+        Vec<SCOPE>,
+        Vec<CHILDACCESS>,
+        Vec<EQUATION>,
+        Vec<CLASS>,
+        Vec<FUNCTION>,
+        Vec<FUNCTIONCALL>,
+        Vec<LAMBDA>,
+        Vec<OBJECT>,
+    )>,
+    imported_files: &HashMap<usize, Vec<(String, usize)>>,
+    accessible_scopes: &HashMap<usize, HashMap<usize, Vec<(usize, usize)>>>,
+    scoped_connectable_s: &HashMap<usize, HashMap<usize, HashMap<String, StatefulClassConnection>>>,
+) {
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////
