@@ -1,7 +1,7 @@
 use crate::{data::*, evaluate_imports::read_all_imports};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
+use std::fmt::{write, Debug};
 use std::usize;
 use std::{collections::HashMap, fmt, fs};
 
@@ -25,19 +25,22 @@ trait Queryable {
     fn get_query(&self) -> Option<String>;
 }
 
+/// file, id
+#[derive(Debug)]
+enum CodeElementPointer {
+    Object(usize, String),
+    FuncCall(usize, usize),
+    Ambiguous(usize, usize, String),
+}
+
 /// start, end, parent, \[bracket/curly/square/root\], content
 pub struct SCOPE(usize, usize, usize, i8, String);
 
-/// start, \[access rout, \[args\]\]
-pub struct CHILDACCESS(usize, Vec<(String, Vec<String>)>);
+/// start, end, code element pointers
+pub struct CHILDACCESS(usize, usize, Vec<(CodeElementPointer)>);
 
 /// start, name, vars_scope, vars
-pub struct FUNCTIONCALL(
-    usize,
-    String,
-    usize,
-    Vec<(StatefulClassConnection, Box<dyn Queryable>)>,
-);
+pub struct FUNCTIONCALL(usize, String, usize, Vec<CodeElementPointer>);
 
 /// lhs(start, str), rhs(start, str)
 pub struct EQUATION((usize, String), (usize, String));
@@ -86,18 +89,18 @@ impl Queryable for FUNCTION {
         Some(q)
     }
 }
-impl Queryable for FUNCTIONCALL {
-    fn get_query(&self) -> Option<String> {
-        let mut q = String::new();
-        q.push_str(self.1.as_str());
-        q.push_str("|");
-        self.3.iter().for_each(|(arg_t, _)| {
-            q.push_str("|");
-            q.push_str(&arg_t.get_name().as_str());
-        });
-        Some(q)
-    }
-}
+// impl Queryable for FUNCTIONCALL {
+//     fn get_query(&self) -> Option<String> {
+//         let mut q = String::new();
+//         q.push_str(self.1.as_str());
+//         q.push_str("|");
+//         self.3.iter().for_each(|arg_t| {
+//             q.push_str("|");
+//             q.push_str(&arg_t.().as_str());
+//         });
+//         Some(q)
+//     }
+// }
 
 impl CHILDACCESS {}
 impl CLASS {}
@@ -133,17 +136,17 @@ macro_rules! build_regex_vec_from_res {
 
 pub fn evaluate(project_path: &String, all_files: &Vec<&String>) {
     let mut intense_info = Vec::new();
-    for file in all_files {
-        if let Some(info) = language_file_intense_extract(file) {
+    for (file_i, file) in all_files.iter().enumerate() {
+        if let Some(info) = language_file_intense_extract(file_i, file) {
             intense_info.push(info);
         }
     }
 
-    let (imported_files, accessible_scopes, scoped_connectable_s) =
+    let (custom_classes, accessible_scopes, scoped_connectable_s) =
         create_scope_availability(project_path, all_files, &intense_info);
     connect_scoped_data(
         &intense_info,
-        &imported_files,
+        &custom_classes,
         &accessible_scopes,
         &scoped_connectable_s,
     );
@@ -154,6 +157,7 @@ pub fn evaluate(project_path: &String, all_files: &Vec<&String>) {
 /////////////////////////////////////////////////////////////////////////////////////////////
 
 fn language_file_intense_extract(
+    file_i: usize,
     file_path: &String,
 ) -> Option<(
     Vec<SCOPE>,
@@ -166,7 +170,7 @@ fn language_file_intense_extract(
     Vec<OBJECT>,
 )> {
     println!();
-    println!("{}", file_path);
+    println!("in file {}", file_path);
 
     let file_text = match fs::read_to_string(file_path) {
         Ok(f) => f,
@@ -230,19 +234,6 @@ fn language_file_intense_extract(
     let lambdas_regex = build_regex_vec_from_res!(get_regex_lambda(file_path));
     let objs_regex = build_regex_vec_from_res!(get_regex_object(file_path));
 
-    let mut access_children_entries: Vec<CHILDACCESS> = Vec::new();
-    for a in access_children_regex {
-        for caps in a.find_iter(&file_text) {
-            let re = regex::Regex::new(r"\.|->").unwrap();
-            let access_rout = re
-                .split(caps.as_str().trim())
-                .map(|s| (s.to_string(), vec![]))
-                .collect();
-            let res = CHILDACCESS(caps.start(), access_rout);
-            access_children_entries.push(res);
-        }
-        println!();
-    }
     let mut equation_entries: Vec<EQUATION> = Vec::new();
     for a in assignments_regex {
         for caps in a.captures_iter(&file_text) {
@@ -273,20 +264,7 @@ fn language_file_intense_extract(
                     let rhs = rhs_with_colon[..rhs_with_colon.len() - 1]
                         .trim()
                         .to_string();
-                    let mut accessed_lhs: Option<usize> = None;
-                    let mut accessed_rhs: Option<usize> = None;
                     let rhs_offset = equation.find(&rhs_with_colon).unwrap();
-                    access_children_entries
-                        .iter()
-                        .enumerate()
-                        .for_each(|(i, x)| {
-                            if x.0 == eq_match.start() {
-                                accessed_lhs = Some(i);
-                            }
-                            if x.0 == eq_match.start() + rhs_offset {
-                                accessed_rhs = Some(i);
-                            }
-                        });
                     equation_entries.push(EQUATION(
                         (eq_match.start(), lhs),
                         (eq_match.start() + rhs_offset, rhs),
@@ -439,32 +417,6 @@ fn language_file_intense_extract(
             }
         }
     }
-    let mut function_call_entries: Vec<FUNCTIONCALL> = Vec::new();
-    for f in function_call_regex {
-        for caps in f.find_iter(&file_text) {
-            let mut is_declaration = false;
-            for f_n in &function_entries {
-                if caps.start() == f_n.4 {
-                    is_declaration = true;
-                    break;
-                }
-            }
-            if is_declaration {
-                continue;
-            }
-            if let Some(vars_scope) = scope_entries.iter().enumerate().find_map(|(s_i, s)| {
-                if s.0 == caps.end() - 1 {
-                    return Some(s_i);
-                }
-                return None;
-            }) {
-                let fn_name = caps.as_str()[..caps.as_str().len() - 1].chars().collect();
-                function_call_entries.push(FUNCTIONCALL(caps.start(), fn_name, vars_scope, vec![]));
-            } else {
-                println!("error in finding vars_scope for query :{:?}", caps);
-            }
-        }
-    }
     let mut object_entries: Vec<OBJECT> = Vec::new();
     for o in objs_regex {
         for caps in o.captures_iter(&file_text) {
@@ -482,6 +434,136 @@ fn language_file_intense_extract(
                     object_entries.push(OBJECT(parent_scope, name, type_str));
                 }
             }
+        }
+    }
+    let mut function_call_entries: Vec<FUNCTIONCALL> = Vec::new();
+    for f in function_call_regex {
+        for caps in f.find_iter(&file_text) {
+            let mut is_declaration = false;
+            for f_n in &function_entries {
+                if caps.start() == f_n.4 {
+                    is_declaration = true;
+                    break;
+                }
+            }
+            if is_declaration {
+                continue;
+            }
+            if let Some(vars_scope_i) = scope_entries.iter().enumerate().find_map(|(s_i, s)| {
+                if s.0 == caps.end() - 1 {
+                    return Some(s_i);
+                }
+                return None;
+            }) {
+                let fn_name = caps.as_str()[..caps.as_str().len() - 1].chars().collect();
+                let mut vars = Vec::new();
+                let vars_scope = scope_entries.iter().nth(vars_scope_i).unwrap();
+                let vars_scope_str = vars_scope.4.clone();
+                let start = vars_scope.0;
+                let mut current_char_i = 0 as usize;
+
+                while current_char_i < vars_scope_str.len() {
+                    while vars_scope_str.chars().nth(current_char_i).unwrap() == ' ' {
+                        current_char_i += 1;
+                    }
+                    let var_start = current_char_i;
+                    while current_char_i < vars_scope_str.len()
+                        && (vars_scope_str.chars().nth(current_char_i).unwrap() != ','
+                            || vars_scope_str.chars().nth(current_char_i).unwrap() != ')')
+                    {
+                        if vars_scope_str.chars().nth(current_char_i).unwrap() == '(' {
+                            if let Some(call_scope) = scope_entries
+                                .iter()
+                                .filter_map(|s| {
+                                    if s.0 == current_char_i + start {
+                                        Some(s)
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .collect::<Vec<&SCOPE>>()
+                                .first()
+                            {
+                                current_char_i = call_scope.1 - start
+                            }
+                        }
+                        current_char_i += 1;
+                    }
+                    vars.push(CodeElementPointer::Ambiguous(
+                        file_i,
+                        start + var_start,
+                        vars_scope_str[var_start..current_char_i].to_string(),
+                    ));
+                }
+
+                println!("function args str :{}", vars_scope);
+                function_call_entries.push(FUNCTIONCALL(caps.start(), fn_name, vars_scope_i, vars));
+            } else {
+                println!("error in finding vars_scope for query :{:?}", caps);
+            }
+        }
+    }
+    let mut access_children_entries: Vec<CHILDACCESS> = Vec::new();
+    for a in access_children_regex {
+        for caps in a.find_iter(&file_text) {
+            // TODO: the ending points of the different elements can also be stored somewhere to make this easier.
+            let start = caps.start();
+            let mut pointers = Vec::new();
+            let mut prev_char_i = 0;
+            let mut curr_char_i = start;
+
+            let mut found_something = false;
+            while true {
+                found_something = false;
+                // skip the spaces
+                while file_text.chars().nth(curr_char_i).unwrap_or(';') == ' '
+                    || file_text.chars().nth(curr_char_i).unwrap_or(';') == '.'
+                {
+                    curr_char_i += 1;
+                }
+                if prev_char_i == curr_char_i {
+                    break;
+                }
+                prev_char_i = curr_char_i;
+
+                // end if found ant thing that should brake the access [ lang specific ]
+                if file_text.chars().nth(curr_char_i).unwrap_or(';') == ';'
+                    || file_text.chars().nth(curr_char_i).unwrap_or(';') == '='
+                {
+                    break;
+                }
+
+                // try to find a function call in the access
+                for (fn_call_i, fn_call) in function_call_entries.iter().enumerate() {
+                    if fn_call.0 == curr_char_i {
+                        pointers.push(CodeElementPointer::FuncCall(file_i, fn_call_i));
+                        let fn_call_scope = fn_call.2;
+                        let fn_call_scope_end = scope_entries.get(fn_call_scope).unwrap().1;
+                        curr_char_i = fn_call_scope_end + 1;
+                        found_something = true;
+                        break;
+                    }
+                }
+                // try to find a word or number in the access
+                let mut word_or_something = "".to_string();
+                let mut word_found = false;
+                while !found_something && !word_found {
+                    if let Some(curr_char) = file_text.chars().nth(curr_char_i) {
+                        if curr_char.is_alphanumeric() || curr_char == '_' {
+                            word_or_something.push(curr_char);
+                            curr_char_i += 1;
+                            continue;
+                        }
+                        pointers.push(CodeElementPointer::Object(
+                            file_i,
+                            word_or_something.clone(),
+                        ));
+                        found_something = true;
+                        word_found = true;
+                    }
+                }
+            }
+            access_children_entries.push(CHILDACCESS(start, curr_char_i, pointers));
         }
     }
 
@@ -576,8 +658,10 @@ pub fn create_scope_availability(
 
     let mut scope_parents: HashMap<usize, HashMap<usize, Vec<(usize, usize)>>> = HashMap::new();
 
-    for (file, (scopes, _, _, classes, functions, function_calls, lambdas, objects)) in
-        files_data.iter().enumerate()
+    for (
+        file,
+        (scopes, child_access, equations, classes, functions, function_calls, lambdas, objects),
+    ) in files_data.iter().enumerate()
     {
         for c in classes {
             let c_scope = c.0;
@@ -653,23 +737,17 @@ pub fn create_scope_availability(
                     StatefulClassConnection::Undiscovered(o.2.clone()),
                 );
         }
-        for (si, _) in scopes.iter().enumerate() {
-            let mut c = si;
+        for (s_i, _) in scopes.iter().enumerate() {
+            let mut c = s_i;
             while c != usize::MAX {
                 scope_parents
                     .entry(file)
                     .or_insert_with(HashMap::new)
-                    .entry(si)
+                    .entry(s_i)
                     .or_insert_with(Vec::new)
                     .push((file, c));
                 c = scopes.get(c).unwrap().2;
             }
-        }
-        for f in function_calls {}
-    }
-
-    for (file, (scopes, _, _, _, _, _, _, _)) in files_data.iter().enumerate() {
-        for (s_i, _) in scopes.iter().enumerate() {
             for i in imported_files.get(&file).unwrap_or(&vec![]) {
                 accessible_scopes
                     .entry(file)
@@ -740,6 +818,16 @@ pub fn create_scope_availability(
             .insert(key.2.clone(), x);
     }
     drop(temp_class_connections);
+
+    // TODO: connecting the data dependencies
+
+    for (
+        file,
+        (scopes, child_access, equations, classes, functions, function_calls, lambdas, objects),
+    ) in files_data.iter().enumerate()
+    {
+        for eq in equations {}
+    }
 
     log_hashmap("imported files", &imported_files);
     log_nested_hashmap("accessible scopes", &accessible_scopes);
@@ -813,7 +901,7 @@ fn connect_scoped_data(
         Vec<LAMBDA>,
         Vec<OBJECT>,
     )>,
-    imported_files: &HashMap<usize, Vec<(String, usize)>>,
+    custom_classes: &HashMap<usize, Vec<(String, usize)>>,
     accessible_scopes: &HashMap<usize, HashMap<usize, Vec<(usize, usize)>>>,
     scoped_connectable_s: &HashMap<usize, HashMap<usize, HashMap<String, StatefulClassConnection>>>,
 ) {
@@ -822,7 +910,15 @@ fn connect_scoped_data(
 /////////////////////////////////////////////////////////////////////////////////////////////
 /// LOGGING /////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////
-
+impl fmt::Display for CodeElementPointer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "----------------------------------------------------\n\t{}",
+            self
+        )
+    }
+}
 impl fmt::Display for SCOPE {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
@@ -852,8 +948,8 @@ impl fmt::Display for CHILDACCESS {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "----------------------------------------------------\n\tstart:{}\n\taccess route:{:?}",
-            self.0, self.1
+            "----------------------------------------------------\n\t{}-{}\n\taccess route:{:?}",
+            self.0, self.1, self.2
         )
     }
 }
@@ -887,8 +983,8 @@ impl fmt::Display for FUNCTIONCALL {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "----------------------------------------------------\n\t({}){} with vars_scope ({})",
-            self.0, self.1, self.2
+            "----------------------------------------------------\n\t({}){} with vars_scope ({}) having :{:?}",
+            self.0, self.1, self.2, self.3
         )
     }
 }
