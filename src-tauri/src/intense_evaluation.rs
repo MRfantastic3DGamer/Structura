@@ -1,6 +1,7 @@
 use crate::{data::*, evaluate_imports::read_all_imports};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use std::f32::consts::E;
 use std::fmt::{write, Debug};
 use std::usize;
 use std::{collections::HashMap, fmt, fs};
@@ -652,6 +653,7 @@ pub fn create_scope_availability(
         HashMap<usize, HashMap<String, StatefulClassConnection>>,
     > = HashMap::new();
     // file -> scope -> [(file, scope)]
+    // TODO: This needs to be fixed
     let mut accessible_scopes: HashMap<usize, HashMap<usize, Vec<(usize, usize)>>> = HashMap::new();
     // file -> [(class_name, scope)]
     let mut custom_classes: HashMap<usize, Vec<(String, usize)>> = HashMap::new();
@@ -687,7 +689,7 @@ pub fn create_scope_availability(
         }
         for f in functions {
             let f_scope = f.0;
-            let f_vars_scope = find_next_scope(&f.4, scopes);
+            let f_vars_scope = find_next_scope(&f.0, scopes);
             accessible_scopes
                 .entry(file)
                 .or_insert_with(HashMap::new)
@@ -905,6 +907,76 @@ fn connect_scoped_data(
     accessible_scopes: &HashMap<usize, HashMap<usize, Vec<(usize, usize)>>>,
     scoped_connectable_s: &HashMap<usize, HashMap<usize, HashMap<String, StatefulClassConnection>>>,
 ) {
+    // TODO: use scoped_connectable_s for this shit
+    for (
+        file_i,
+        (scopes, child_accesses, equations, classes, functions, fun_calls, lambdas, objects),
+    ) in files_data.iter().enumerate()
+    {
+        for eq in equations {
+            println!("searching for equation {}", eq);
+            let lhs_start = eq.0 .0;
+            let lhs_end = eq.0 .0 + eq.0 .1.len();
+            let rhs_start = eq.1 .0;
+            let rhs_end = eq.1 .0 + eq.1 .1.len();
+            let mut lhs_ca_op = None;
+            let mut rhs_ca_op = None;
+            let eq_accessible_scopes = accessible_scopes
+                .get(&file_i)
+                .unwrap()
+                .get(&find_parent(&lhs_start, scopes))
+                .unwrap()
+                .iter()
+                .rev();
+            for ca in child_accesses {
+                if lhs_ca_op.is_none() && ca.0 <= lhs_start && lhs_end <= ca.1 {
+                    lhs_ca_op = Some(ca);
+                    println!("found ca for lhs {}", ca);
+                }
+                if rhs_ca_op.is_none() && ca.0 <= rhs_start && rhs_end <= ca.1 {
+                    rhs_ca_op = Some(ca);
+                    println!("found ca for rhs {}", ca);
+                }
+            }
+            let mut lhs_c_obj = None;
+            let mut rhs_c_obj = None;
+            let mut r_c_fun_call = None;
+
+            for s in eq_accessible_scopes {
+                if let Some(a) = scoped_connectable_s.get(&s.0) {
+                    if let Some(b) = a.get(&s.1) {
+                        if lhs_ca_op.is_none() && lhs_c_obj.is_none() {
+                            let l_c = b.get(eq.0 .1.trim());
+                            if l_c.is_some() {
+                                lhs_c_obj = l_c;
+                                println!("found Connectable {:?} for lhs", l_c);
+                            }
+                        }
+                        if rhs_ca_op.is_none() && rhs_c_obj.is_none() {
+                            let r_c = b.get(eq.1 .1.trim());
+                            if r_c.is_some() {
+                                rhs_c_obj = r_c;
+                                println!("found Connectable {:?} for rhs", r_c);
+                            }
+                        }
+                    }
+                }
+            }
+            for fc in fun_calls {
+                if rhs_start == fc.0 {
+                    r_c_fun_call = Some(fc);
+                    println!("found fun call {} for rhs", fc);
+                    break;
+                }
+            }
+            if lhs_ca_op.is_none() && lhs_c_obj.is_none() {
+                println!("found ambiguous {} for lhs", eq.0 .1);
+            }
+            if rhs_ca_op.is_none() && rhs_c_obj.is_none() && r_c_fun_call.is_none() {
+                println!("found ambiguous {} for rhs", eq.1 .1);
+            }
+        }
+    }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////
