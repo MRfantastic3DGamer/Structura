@@ -64,7 +64,25 @@ async fn request_project_structure<R: Runtime>(
     }
 
     println!("\n\n------ intense extract ------\n\n");
-    intense_evaluation::evaluate(&project_path, &all_files);
+    let (custom_classes, accessible_scopes, scoped_connectable_s) =
+        intense_evaluation::evaluate(&project_path, &all_files);
+
+    // Serialize data
+    let intense_data_json = json!({
+        "custom_classes": custom_classes,
+        "accessible_scopes": accessible_scopes,
+        "scoped_connectable_s": scoped_connectable_s,
+    });
+
+    // Emit to frontend
+    let intense_emit_result = window.emit("intense_data", intense_data_json);
+
+    match intense_emit_result {
+        Ok(_) => {}
+        Err(e) => {
+            eprintln!("couldn't emit the intense data properly due to \n\terror : {}", e);
+        }
+    }
     // for f_p in all_files {
     //     language_file_intense_extract(f_p);
     // }

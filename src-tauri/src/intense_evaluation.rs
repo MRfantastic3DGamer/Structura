@@ -1,8 +1,7 @@
 use crate::{data::*, evaluate_imports::read_all_imports};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use std::f32::consts::E;
-use std::fmt::{write, Debug};
+use std::fmt::Debug;
 use std::usize;
 use std::{collections::HashMap, fmt, fs};
 
@@ -135,23 +134,41 @@ macro_rules! build_regex_vec_from_res {
 /// START ///////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////
 
-pub fn evaluate(project_path: &String, all_files: &Vec<&String>) {
+pub fn evaluate(
+    project_path: &String,
+    all_files: &Vec<&String>,
+) -> (
+    HashMap<usize, Vec<(String, usize)>>,
+    HashMap<usize, HashMap<usize, Vec<(usize, usize)>>>,
+    HashMap<usize, HashMap<usize, HashMap<String, StatefulClassConnection>>>,
+) {
     let mut intense_info = Vec::new();
     for (file_i, file) in all_files.iter().enumerate() {
         if let Some(info) = language_file_intense_extract(file_i, file) {
             intense_info.push(info);
         }
     }
-
-    let (custom_classes, accessible_scopes, scoped_connectable_s) =
-        create_scope_availability(project_path, all_files, &intense_info);
-    connect_scoped_data(
-        &intense_info,
-        &custom_classes,
-        &accessible_scopes,
-        &scoped_connectable_s,
-    );
+    create_scope_availability(project_path, all_files, &intense_info)
 }
+
+// pub fn evaluate(project_path: &String, all_files: &Vec<&String>) {
+//     let mut intense_info = Vec::new();
+//     for (file_i, file) in all_files.iter().enumerate() {
+//         if let Some(info) = language_file_intense_extract(file_i, file) {
+//             intense_info.push(info);
+//         }
+//     }
+
+//     let (custom_classes, accessible_scopes, scoped_connectable_s) =
+//         create_scope_availability(project_path, all_files, &intense_info);
+
+//     // connect_scoped_data(
+//     //     &intense_info,
+//     //     &custom_classes,
+//     //     &accessible_scopes,
+//     //     &scoped_connectable_s,
+//     // );
+// }
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 /// READING FILES ///////////////////////////////////////////////////////////////////////////
@@ -907,12 +924,12 @@ fn connect_scoped_data(
     accessible_scopes: &HashMap<usize, HashMap<usize, Vec<(usize, usize)>>>,
     scoped_connectable_s: &HashMap<usize, HashMap<usize, HashMap<String, StatefulClassConnection>>>,
 ) {
-    // TODO: use scoped_connectable_s for this shit
     for (
         file_i,
         (scopes, child_accesses, equations, classes, functions, fun_calls, lambdas, objects),
     ) in files_data.iter().enumerate()
     {
+        // connecting equations
         for eq in equations {
             println!("searching for equation {}", eq);
             let lhs_start = eq.0 .0;
@@ -976,6 +993,9 @@ fn connect_scoped_data(
                 println!("found ambiguous {} for rhs", eq.1 .1);
             }
         }
+
+        // connecting functions and arguments
+        for f in fun_calls {}
     }
 }
 
