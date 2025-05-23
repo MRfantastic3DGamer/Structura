@@ -34,6 +34,8 @@ function StructureDiagram() {
     const [accessibleScopes, setAccessibleScopes] = useState<Map<number, Map<number, [number, number][]>>>(new Map());
     const [scopedConnectable, setScopedConnectable] = useState<Map<number, Map<number, Map<string, any>>>>(new Map());
     const [html, setHtml] = useState<string>("")
+    const [debug, setDebug] = useState<string>("");
+
     interface Node {
         id: string;
         name: string;
@@ -136,17 +138,11 @@ function StructureDiagram() {
                 objects: [],
             }));
 
-            newDebugLogs.set("x", JSON.stringify(prevNodes));
-
             for (const [key, values] of childrenTable.entries()) {
                 const [file, index] = key;
                 const parentId = `${String(file)}-${String(index)}`;
                 const parentNode = updatedNodes.find(node => node.id === parentId);
 
-                if (!parentNode) {
-                    newDebugLogs.set(parentId, (newDebugLogs.get(parentId) || "") + "\n❌ Node not found");
-                    continue;
-                }
 
                 newDebugLogs.set(parentId, (newDebugLogs.get(parentId) || "") + "\n✅ Node found");
 
@@ -259,19 +255,31 @@ function StructureDiagram() {
     };
 
     useEffect(() => {
-        const links = [
-            { source: 0, target: 1 },
-            { source: 0, target: 2 }
+        const newLinks: { source: number; target: number; }[] = [
+            // { source: 1, target: 2 },
+            // { source: 3, target: 4 }
         ];
 
-        // Replace placeholders
+        var debug = "";
+        nodes.forEach((node, nodeIdx) => {
+            const [nf, ni] = node.id.split('-');
+            const classTag = allTags.get(Number(nf))[Number(ni)].Class;
+            classTag.parents.forEach((p) => {
+                if ("Connected" in p) {
+                        const [pf, pi] = p.Connected;
+                        const pIndex = nodes.findIndex((n) => n.id === `${String(pf)}-${String(pi)}`)
+                        newLinks.push({ source: pIndex, target: nodeIdx });
+                }
+            });
+        })
+        setDebug(debug);
         const updatedHtmlContent = rawHtml
             .replace("@NODES", JSON.stringify(nodes, null, 2))
-            .replace("@LINKS", JSON.stringify(links, null, 2));
+            .replace("@LINKS", JSON.stringify(newLinks, null, 2));
 
-        // Set the updated HTML content to the state
         setHtml(updatedHtmlContent);
     }, [nodes]);
+
 
     const downloadHtmlFile = () => {
         const blob = new Blob([html], { type: "text/html" });
@@ -316,10 +324,6 @@ function StructureDiagram() {
                     Array.from(allImports.entries()), null, 2)}
             </p> */}
             {/* <p>
-                <strong>allTags:</strong> {JSON.stringify(
-                    Array.from(allTags.entries()), null, 2)}
-            </p>
-            <p>
                 <strong>childrenTable:</strong> {JSON.stringify(
                     Array.from(childrenTable.entries()), null, 2)}
             </p>
@@ -349,7 +353,7 @@ function StructureDiagram() {
             }}>
                 <h3 style={{ display: "inline-block", marginRight: "20px" }}>{projectPath}</h3>
                 <button onClick={generateTags} style={{ marginRight: "10px", fontSize: "16px" }} title="Generate Tags">⚙️</button>
-                {/* <button onClick={connect_objects_methods} style={{ marginRight: "10px", fontSize: "16px" }} title="Connect Objects and Methods">🔗</button> */}
+                <button onClick={connect_objects_methods} style={{ marginRight: "10px", fontSize: "16px" }} title="Connect Objects and Methods">🔗</button>
                 <button onClick={downloadHtmlFile} style={{ fontSize: "16px" }} title="Download HTML">⬇️</button>
             </div>
 
@@ -367,6 +371,14 @@ function StructureDiagram() {
                 }}
                 title="Rendered HTML"
             />
+
+            {/* <p>
+                <strong>allTags:</strong> {JSON.stringify(Array.from(allTags.entries()), null, 2)}
+            </p>
+
+            <p>
+                <strong>Debug:</strong> {debug}
+            </p> */}
         </div>
     );
 }

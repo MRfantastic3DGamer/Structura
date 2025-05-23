@@ -75,8 +75,8 @@
       const links = @LINKS;
 
       const simulation = forceSimulation(nodes)
-        .force("link", forceLink(links).distance(300).strength(0.5))
-        .force("collide", forceCollide(80))
+        .force("link", forceLink(links).distance(1).strength(0.3))
+        .force("collide", forceCollide(100))
         .force("hierarchy", () => {
           links.forEach(link => {
             const parent = link.source;
@@ -96,17 +96,6 @@
               // child.x -= (dx) / Math.abs(dx) * 0.5;
             }
           });
-        })
-        .force("xy-snap", () => {
-          nodes.forEach(node => {
-            const gridSize = 10.0
-            const snapDistY = node.y % gridSize;
-            const snapDistX = node.x % gridSize;
-            const snapForceY = (snapDistY > gridSize/2.0)? -1 : 1;
-            const snapForceX = (snapDistX > gridSize/2.0)? -1 : 1;
-            node.y += snapForceY * 0.2;
-            node.x += snapForceX * 0.2;
-          })
         })
         .on("tick", ticked);
 
@@ -133,7 +122,7 @@
       nodeGroups
         .append("foreignObject")
         .attr("width", 200)
-        .attr("height", d => 800 + d.objects.length * 40 + d.methods.length * 40)
+        .attr("height", d => 100 + d.methods.length * 40)
         .attr("x", 5)
         .attr("y", 5)
         .html(
@@ -141,12 +130,12 @@
           <div class="node-details">
             <strong>${d.name}</strong>
             <hr>
-            <div>
+            <!-- <div>
               <strong>Objects:</strong>
               <ul>
                 ${d.objects.map(obj => `<li>${obj.name}</li>`).join("")}
               </ul>
-            </div>
+            </div> -->
             <div>
               <strong>Methods:</strong>
               <ul>
