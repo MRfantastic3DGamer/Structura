@@ -37,7 +37,7 @@ enum CodeElementPointer {
 pub struct SCOPE(usize, usize, usize, i8, String);
 
 /// start, end, code element pointers
-pub struct CHILDACCESS(usize, usize, Vec<(CodeElementPointer)>);
+pub struct CHILDACCESS(usize, usize, Vec<CodeElementPointer>);
 
 /// start, name, vars_scope, vars
 pub struct FUNCTIONCALL(usize, String, usize, Vec<CodeElementPointer>);

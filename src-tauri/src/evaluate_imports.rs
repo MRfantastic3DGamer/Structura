@@ -3,9 +3,10 @@ use std::{
     usize,
 };
 
-mod program_tag;
+pub mod program_tag;
+pub use program_tag::{ClassType, ProgramTag};
+
 mod read_imports;
-use program_tag::{ClassType, ProgramTag};
 use read_imports::Import;
 
 use crate::tag_entry::{ClassEntry, FunctionEntry, ObjectEntry, ScopeEntry};
@@ -22,7 +23,6 @@ pub fn evaluate_all_hard_data<'a>(
             Vec<ObjectEntry>,
         ),
     >,
-    progress_indication: impl Fn(&str, u8),
 ) -> (
     HashMap<usize, Vec<usize>>,
     HashMap<usize, Vec<ProgramTag>>,
@@ -100,7 +100,6 @@ pub fn evaluate_all_hard_data<'a>(
             });
 
             let progress = ((f + 1) as f32 / all_files.len() as f32) * 100.0;
-            progress_indication("initial tags formatting", progress as u8);
         }
     }
 
@@ -140,7 +139,6 @@ pub fn evaluate_all_hard_data<'a>(
             });
 
         let progress = ((f + 1) as f32 / all_files.len() as f32) * 100.0;
-        progress_indication("connecting classes", progress as u8);
     }
 
     // bake changes

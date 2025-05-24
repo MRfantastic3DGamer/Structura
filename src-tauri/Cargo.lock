@@ -1439,6 +1439,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "78b3ae25bc7c8c38cec158d1f2757ee79e9b3740fbc7ccf0e59e4b08d793fa89"
 
 [[package]]
+name = "llama-rs"
+version = "0.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5a2ecf5d12cd53cc37b7341d6b692d0407a752b0c291c9f97ad251940ff3e0f3"
+
+[[package]]
 name = "lock_api"
 version = "0.4.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2567,6 +2573,8 @@ checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 name = "structura"
 version = "0.1.0"
 dependencies = [
+ "lazy_static",
+ "llama-rs",
  "phf 0.11.2",
  "regex",
  "relative-path",

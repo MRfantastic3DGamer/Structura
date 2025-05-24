@@ -12,7 +12,7 @@ use file_walk::file_walk;
 use serde::Serialize;
 use serialization::{u128_as_string, vec_u128_as_string};
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 pub struct TagEntry {
     pub tag_name: String,
     pub file_name: String,
@@ -38,7 +38,7 @@ pub struct ScopeEntry {
     pub children_scop: Vec<u128>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize)]
 pub struct ClassEntry {
     pub name: String,
     pub parent_scope: usize,
@@ -46,7 +46,7 @@ pub struct ClassEntry {
     pub parents: Vec<String>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize)]
 pub struct FunctionEntry {
     pub name: String,
     pub parent_scope: usize,
@@ -54,7 +54,7 @@ pub struct FunctionEntry {
     pub class_name: String,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize)]
 pub struct ObjectEntry {
     pub name: String,
     pub parent_scope: usize,
@@ -120,7 +120,6 @@ pub fn get_all_files<'a>(tags: &'a Vec<TagEntry>) -> HashSet<&'a String> {
 pub async fn get_all_hard_data<'a>(
     all_files: &'a Vec<&'a String>,
     all_tags: &'a Vec<TagEntry>,
-    progress_indication: impl Fn(&str, u8),
 ) -> HashMap<
     &'a String,
     (
@@ -146,7 +145,6 @@ pub async fn get_all_hard_data<'a>(
         all_data.insert(*file_path, file_data);
 
         let progress = ((f + 1) as f32 / total_files as f32) * 100.0;
-        progress_indication("files reading pass 1", progress as u8);
     }
 
     all_data
