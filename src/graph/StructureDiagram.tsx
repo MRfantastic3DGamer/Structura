@@ -12,6 +12,8 @@ import {
   applyEdgeChanges,
   Node,
   Edge,
+  Handle,
+  Position,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
@@ -30,6 +32,77 @@ interface ProgramTag {
 }
 
 // The entire data structure types
+
+// Custom node component
+const CustomNode = ({ data }: { data: { label: string; methods: any[]; objects: any[] } }) => {
+  return (
+    <div style={{
+      padding: '10px',
+      borderRadius: '5px',
+      backgroundColor: 'white',
+      border: '1px solid #ddd',
+      minWidth: '200px',
+      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+    }}>
+      <Handle type="target" position={Position.Top} />
+
+      {/* Class Name */}
+      <div style={{
+        color: 'black',
+        padding: '5px',
+        borderBottom: '1px solid #eee',
+        fontWeight: 'bold',
+        fontSize: '14px',
+      }}>
+        {data.label}
+      </div>
+
+      {/* Methods Section */}
+      {data.methods.length > 0 && (
+        <div style={{ marginTop: '5px' }}>
+          <div style={{ fontSize: '12px', color: '#666', marginBottom: '3px' }}>Methods:</div>
+          {data.methods.map((method, index) => (
+            <div key={index} style={{
+              color: 'black',
+              fontSize: '12px',
+              padding: '2px 5px',
+              backgroundColor: '#f5f5f5',
+              margin: '2px 0',
+              borderRadius: '3px',
+            }}>
+              {method.name}()
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Objects Section */}
+      {/* {data.objects.length > 0 && (
+        <div style={{ marginTop: '5px' }}>
+          <div style={{ fontSize: '12px', color: '#666', marginBottom: '3px' }}>Objects:</div>
+          {data.objects.map((obj, index) => (
+            <div key={index} style={{
+              fontSize: '12px',
+              padding: '2px 5px',
+              backgroundColor: '#f0f0f0',
+              margin: '2px 0',
+              borderRadius: '3px',
+            }}>
+              {obj.name}
+            </div>
+          ))}
+        </div>
+      )} */}
+
+      <Handle type="source" position={Position.Bottom} />
+    </div>
+  );
+};
+
+// Update the node types
+const nodeTypes = {
+  custom: CustomNode,
+};
 
 function StructureDiagram() {
   const projectPath = localStorage.getItem(Statics.PROJECT_PATH);
@@ -325,10 +398,7 @@ function StructureDiagram() {
   };
 
   useEffect(() => {
-    const newLinks: { source: number; target: number }[] = [
-      // { source: 1, target: 2 },
-      // { source: 3, target: 4 }
-    ];
+    const newLinks: { source: number; target: number }[] = [];
 
     var debug = "";
     nodes.forEach((node, nodeIdx) => {
@@ -352,6 +422,7 @@ function StructureDiagram() {
     setHtml(updatedHtmlContent);
     const convertedNodes = nodes.map((node) => ({
       id: node.id,
+      type: 'custom',
       data: {
         label: node.name,
         methods: node.methods,
@@ -368,14 +439,83 @@ function StructureDiagram() {
       type: "step",
     }));
 
+    // Function to build adjacency list for tree structure
+    const buildTreeStructure = (edges: typeof convertedEdges) => {
+      const children: { [key: string]: string[] } = {};
+      const parents: { [key: string]: string } = {};
+
+      edges.forEach(edge => {
+        if (!children[edge.source]) {
+          children[edge.source] = [];
+        }
+        children[edge.source].push(edge.target);
+        parents[edge.target] = edge.source;
+      });
+
+      return { children, parents };
+    };
+
+    // Function to find root nodes (nodes without parents)
+    const findRootNodes = (parents: { [key: string]: string }, allNodes: typeof convertedNodes) => {
+      return allNodes.filter(node => !parents[node.id]);
+    };
+
+    // Function to calculate node positions in a tree layout
+    const calculateTreePositions = (nodes: typeof convertedNodes, edges: typeof convertedEdges) => {
+      const { children, parents } = buildTreeStructure(edges);
+      const rootNodes = findRootNodes(parents, nodes);
+
+      // Constants for layout
+      const LEVEL_HEIGHT = 200; // Vertical spacing between levels
+      const NODE_SPACING = 250; // Horizontal spacing between nodes
+
+      // Track nodes at each level
+      const levelNodes: { [key: number]: string[] } = {};
+      const nodeLevels: { [key: string]: number } = {};
+
+      // Assign levels to nodes using BFS
+      const assignLevels = (startNode: string, level: number) => {
+        if (nodeLevels[startNode] !== undefined) return;
+
+        nodeLevels[startNode] = level;
+        if (!levelNodes[level]) levelNodes[level] = [];
+        levelNodes[level].push(startNode);
+
+        if (children[startNode]) {
+          children[startNode].forEach(child => assignLevels(child, level + 1));
+        }
+      };
+
+      // Start BFS from each root node
+      rootNodes.forEach(root => assignLevels(root.id, 0));
+
+      // Calculate positions for each level
+      const positionedNodes = nodes.map(node => {
+        const level = nodeLevels[node.id];
+        const nodesAtLevel = levelNodes[level];
+        const index = nodesAtLevel.indexOf(node.id);
+
+        // Calculate x position based on index in level
+        const x = (index - (nodesAtLevel.length - 1) / 2) * NODE_SPACING;
+        // Calculate y position based on level
+        const y = level * LEVEL_HEIGHT;
+
+        return {
+          ...node,
+          position: { x, y }
+        };
+      });
+
+      return positionedNodes;
+    };
+
+    // Calculate new positions for nodes
+    const positionedNodes = calculateTreePositions(convertedNodes, convertedEdges);
+
     // Set them in state
-    setRfNodes(convertedNodes);
+    setRfNodes(positionedNodes);
     setRfEdges(convertedEdges);
   }, [nodes]);
-  //   useEffect(() => {
-  //     // Convert nodes to React Flow format
-
-  //   }, [nodes]);
 
   const downloadHtmlFile = () => {
     const blob = new Blob([html], { type: "text/html" });
@@ -391,50 +531,6 @@ function StructureDiagram() {
 
   return (
     <div>
-      {/* <h3>{projectPath}</h3> */}
-      {/* <button onClick={generateTags}>Generate tags</button>
-      <button onClick={connect_objects_methods}>Generate tags</button>
-      <h5>{D}</h5>
-      <div className="bg-gray-900 text-white p-4 rounded-md overflow-auto max-h-64">
-        {Array.from(debugLogs.entries()).map(([key, log]) => (
-          <div key={key} className="border-b border-gray-700 pb-2 mb-2">
-            <strong className="text-blue-400">{key}</strong>
-            <pre className="whitespace-pre-wrap">{log}</pre>
-          </div>
-        ))}
-      </div>
-      Display progress : {progress}
-      {Array.from(progress.entries()).map(([progressType, progressValue]) => (
-        <div key={progressType}>
-          <p>
-            {progressType}: {progressValue} %
-          </p>
-          <progress value={progressValue / 100.0} max="1" />
-        </div>
-      ))}
-      <p>
-        <strong>allFiles:</strong>{" "}
-        {JSON.stringify(Array.from(allFiles), null, 2)}
-      </p>
-      <p>
-        <strong>allImports:</strong>{" "}
-        {JSON.stringify(Array.from(allImports.entries()), null, 2)}
-      </p>
-      <p>
-        <strong>childrenTable:</strong>{" "}
-        {JSON.stringify(Array.from(childrenTable.entries()), null, 2)}
-      </p>
-      <p>
-        <strong>accessibleScopes:</strong>{" "}
-        {JSON.stringify(Array.from(accessibleScopes.entries()), null, 2)}
-      </p>
-      <p>
-        <strong>scopedConnectable:</strong>{" "}
-        {JSON.stringify(Array.from(scopedConnectable.entries()), null, 2)}
-      </p>
-      <p>
-        <strong>nodes:</strong> {JSON.stringify(nodes, null, 2)}
-      </p> */}
       <div
         style={{
           position: "absolute",
@@ -492,11 +588,9 @@ function StructureDiagram() {
         <ReactFlow
           nodes={rfNodes}
           edges={rfEdges}
+          nodeTypes={nodeTypes}
           onNodesChange={(changes) =>
             setRfNodes((nds) => applyNodeChanges(changes, nds))
-          }
-          onEdgesChange={(changes) =>
-            setRfEdges((eds) => applyEdgeChanges(changes, eds))
           }
           fitView
         >
@@ -504,141 +598,7 @@ function StructureDiagram() {
           <Controls />
         </ReactFlow>
       </div>
-      {/* <p>
-        <strong>allTags:</strong>{" "}
-        {JSON.stringify(Array.from(allTags.entries()), null, 2)}
-      </p>
-      <p>
-        <strong>Debug:</strong> {debug}
-      </p> */}
     </div>
   );
 }
 export default StructureDiagram;
-// import React, { useEffect, useState } from "react";
-// import ReactFlow, {
-//   Background,
-//   Controls,
-//   applyNodeChanges,
-//   applyEdgeChanges,
-//   Edge,
-//   Node as RFNode,
-// } from "reactflow";
-// import "reactflow/dist/style.css";
-
-// interface Node {
-//   id: string;
-//   name: string;
-//   x: number;
-//   y: number;
-//   objects: { name: string }[];
-//   methods: { name: string }[];
-// }
-
-// interface StructureDiagramProps {
-//   nodes: Node[];
-//   allTags: Map<number, { [key: number]: { Class: { parents: any[] } } }>;
-// }
-
-// const StructureDiagram: React.FC<StructureDiagramProps> = ({
-//   nodes,
-//   allTags,
-// }) => {
-//   const [rfNodes, setRfNodes] = useState<RFNode[]>([]);
-//   const [rfEdges, setRfEdges] = useState<Edge[]>([]);
-
-//   // Convert nodes to React Flow nodes
-//   useEffect(() => {
-//     const convertedNodes: RFNode[] = nodes.map((node) => ({
-//       id: node.id,
-//       position: { x: node.x, y: node.y },
-//       data: {
-//         label: (
-//           <div
-//             style={{
-//               padding: "10px",
-//               border: "2px solid #007bff",
-//               borderRadius: "8px",
-//               background: "#f0f8ff",
-//               minWidth: "150px",
-//             }}
-//           >
-//             <strong>{node.name}</strong>
-//             <hr />
-//             <div>
-//               <strong>Objects:</strong>
-//               <ul style={{ paddingLeft: "16px", margin: 0 }}>
-//                 {node.objects.map((obj, idx) => (
-//                   <li key={idx}>{obj.name}</li>
-//                 ))}
-//               </ul>
-//             </div>
-//             <div>
-//               <strong>Methods:</strong>
-//               <ul style={{ paddingLeft: "16px", margin: 0 }}>
-//                 {node.methods.map((method, idx) => (
-//                   <li key={idx}>{method.name}()</li>
-//                 ))}
-//               </ul>
-//             </div>
-//           </div>
-//         ),
-//       },
-//       type: "default",
-//       style: { width: 200 },
-//     }));
-
-//     setRfNodes(convertedNodes);
-//   }, [nodes]);
-
-//   // Convert links to React Flow edges
-//   useEffect(() => {
-//     const newEdges: Edge[] = [];
-
-//     for (const node of nodes) {
-//       const [nf, ni] = node.id.split("-");
-//       const classTag = allTags.get(Number(nf))?.[Number(ni)]?.Class;
-//       if (!classTag?.parents) continue;
-
-//       for (const parent of classTag.parents) {
-//         if ("Connected" in parent) {
-//           const [pf, pi] = parent.Connected;
-//           const parentId = `${pf}-${pi}`;
-
-//           newEdges.push({
-//             id: `${parentId}-${node.id}`,
-//             source: parentId,
-//             target: node.id,
-//             type: "step",
-//             label: "inherits",
-//             animated: true,
-//           });
-//         }
-//       }
-//     }
-
-//     setRfEdges(newEdges);
-//   }, [nodes, allTags]);
-
-//   return (
-//     <div style={{ width: "100vw", height: "90vh" }}>
-//       <h2>Rendering Flow</h2>
-//       <ReactFlow
-//         nodes={rfNodes}
-//         edges={rfEdges}
-//         onNodesChange={(changes) =>
-//           setRfNodes((nds) => applyNodeChanges(changes, nds))
-//         }
-//         onEdgesChange={(changes) =>
-//           setRfEdges((eds) => applyEdgeChanges(changes, eds))
-//         }
-//         fitView
-//       >
-//         <Background />
-//         <Controls />
-//       </ReactFlow>
-//     </div>
-//   );
-// };
-
-// export default StructureDiagram;
