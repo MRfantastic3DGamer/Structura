@@ -1,8 +1,14 @@
+use crate::*;
+
 pub static FUNCTION: phf::Map<&'static str, &'static [&'static str]> = phf::phf_map! {
     "c" => &[
-        r"(\w[\w\s\*&:<>]*)\s+(\w+)\s*\(([^)]*)\)",
+        concat!(
+            r"(\w[\w\s\*&:<>]*)\s+(\w+)", possible_spaces!(), anything_inside_brackets!(), possible_spaces!(), r"\{"
+        ),
     ],
     "cpp" => &[
-        r"(\w[\w\s\*&:<>]*)\s+(\w+)\s*\(([^)]*)\)",
+        concat!(
+            r"(\w[\w\s\*&:<>]*)\s+(\w+)", possible_spaces!(), anything_inside_brackets!(), possible_spaces!(), r"(const override|const|)", possible_spaces!(), r"\{"
+        ),
     ],
 };

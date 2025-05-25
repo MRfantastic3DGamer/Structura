@@ -1,8 +1,13 @@
 mod data_types;
+mod regex_access_child;
 mod regex_assignments;
 mod regex_class;
 mod regex_fun;
+mod regex_function_call;
 mod regex_interface;
+mod regex_lambda;
+#[macro_use]
+pub mod regex_macros;
 mod regex_object;
 
 use std::path::Path;
@@ -32,6 +37,14 @@ pub fn get_data_types(file_path: &String) -> Option<&&[&str]> {
     get_data_for_extension(file_path, &data_types::DATA_TYPES).1
 }
 
+pub fn get_regex_access_child(file_path: &String) -> (Option<&str>, Option<&&[&str]>) {
+    get_data_for_extension(file_path, &regex_access_child::ACCESS_CHILD)
+}
+
+pub fn get_regex_function_call(file_path: &String) -> (Option<&str>, Option<&&[&str]>) {
+    get_data_for_extension(file_path, &regex_function_call::FUNCTION_CALL)
+}
+
 pub fn get_regex_assignments(file_path: &String) -> (Option<&str>, Option<&&[&str]>) {
     get_data_for_extension(file_path, &regex_assignments::ASSIGNMENT)
 }
@@ -44,8 +57,12 @@ pub fn get_regex_fun(file_path: &String) -> (Option<&str>, Option<&&[&str]>) {
     get_data_for_extension(file_path, &regex_fun::FUNCTION)
 }
 
-pub fn get_regex_interface(file_path: &String) -> (Option<&str>, Option<&&[&str]>) {
-    get_data_for_extension(file_path, &regex_interface::INTERFACE)
+// pub fn get_regex_interface(file_path: &String) -> (Option<&str>, Option<&&[&str]>) {
+//     get_data_for_extension(file_path, &regex_interface::INTERFACE)
+// }
+
+pub fn get_regex_lambda(file_path: &String) -> (Option<&str>, Option<&&[&str]>) {
+    get_data_for_extension(file_path, &regex_lambda::LAMBDA)
 }
 
 pub fn get_regex_object(file_path: &String) -> (Option<&str>, Option<&&[&str]>) {

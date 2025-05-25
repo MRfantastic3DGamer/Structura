@@ -1,36 +1,12 @@
-// mod crate::evaluate_imports::languages_constants::get_language;
-
+mod language_scanners;
+use super::{ClassEntry, FunctionEntry, ObjectEntry, ScopeEntry, TagEntry};
+use regex::Regex;
 use std::{
-    fs::{self, File},
+    fs::File,
     io::{self, BufRead},
     path::Path,
     u128,
 };
-
-use regex::Regex;
-
-use super::{ClassEntry, FunctionEntry, ObjectEntry, ScopeEntry, TagEntry};
-
-macro_rules! build_regex_vec_from_res {
-    ($res:expr) => {{
-        let (_, regex_res) = $res; // Destructure the tuple
-        if regex_res.is_none() {
-            eprintln!("couldn't get the regex for the file {:?}", $res);
-            return None;
-        }
-        let regex_strs = regex_res.unwrap(); // Unwrap the Option<&&[&str]>
-        let mut regex_vec = vec![];
-
-        for regex_str in regex_strs.into_iter() {
-            if let Ok(regex) = Regex::new(regex_str) {
-                regex_vec.push(regex);
-            } else {
-                eprintln!("couldn't build regex for {}", regex_str);
-            }
-        }
-        regex_vec
-    }};
-}
 
 pub fn file_walk(
     file_path: &String,
@@ -45,7 +21,6 @@ pub fn file_walk(
     res
 }
 
-// TODO: note the section after = as its own scope
 fn brackets_walk(
     file_path: &String,
     tags: &Vec<&TagEntry>,
@@ -98,7 +73,6 @@ fn brackets_walk(
             // todo: also look for if else elif switch etc
 
             if line_content.find(&t.reg_ex).is_some() {
-                // TODO:search for all the data types first
                 let class_name_regex = Regex::new(r"(\w+) ").unwrap();
 
                 let class_name = match class_name_regex.captures(&line_content) {
@@ -289,64 +263,4 @@ fn find_parents(line: &String) -> Vec<String> {
         .filter_map(|cap| cap.get(2))
         .map(|p| p.as_str().to_string())
         .collect()
-}
-
-pub fn language_file_walk(file_path: &String) -> Option<bool> {
-    let file_text = match fs::read_to_string(file_path) {
-        Ok(f) => f,
-        Err(_) => String::new(),
-    };
-
-    let assignments_regex =
-        build_regex_vec_from_res!(crate::data::get_regex_assignments(file_path));
-    let class_regex = build_regex_vec_from_res!(crate::data::get_regex_class(file_path));
-    let funs_regex = build_regex_vec_from_res!(crate::data::get_regex_fun(file_path));
-    let _interfaces_regex = build_regex_vec_from_res!(crate::data::get_regex_interface(file_path));
-    let objs_regex = build_regex_vec_from_res!(crate::data::get_regex_object(file_path));
-
-    println!();
-    for a in assignments_regex {
-        for caps in a.captures_iter(&file_text) {
-            println!("for obj {}", caps.get(1).map(|m| m.as_str()).unwrap_or(""));
-            println!("-->{}", caps.get(0).map(|m| m.as_str()).unwrap_or(""));
-            println!();
-        }
-    }
-    for c in class_regex {
-        for caps in c.captures_iter(&file_text) {
-            let class_name = &caps.get(1).map(|m| m.as_str()).unwrap_or("");
-            let class_parents = &caps.get(2).map(|m| m.as_str()).unwrap_or("");
-
-            println!("for Class: {}", class_name);
-            println!("    parents: {}", class_parents);
-            println!();
-        }
-    }
-    for f in funs_regex {
-        for caps in f.captures_iter(&file_text) {
-            let return_type = caps.get(1).map(|m| m.as_str()).unwrap_or("");
-            let function_name = caps.get(2).map(|m| m.as_str()).unwrap_or("");
-            let arguments = caps.get(3).map(|m| m.as_str()).unwrap_or("");
-
-            println!("Function Name: {}", function_name);
-            println!("  Return Type: {}", return_type);
-            if !arguments.is_empty() {
-                println!("  Arguments: {}", arguments);
-            } else {
-                println!("  Arguments: None");
-            }
-            println!();
-        }
-    }
-    for o in objs_regex {
-        for caps in o.captures_iter(&file_text) {
-            let obj_class = &caps.get(1).map(|m| m.as_str()).unwrap_or("");
-            let obj_name = &caps.get(2).map(|m| m.as_str()).unwrap_or("");
-
-            println!("object Class: {} , name: {}", obj_class, obj_name);
-            println!();
-        }
-    }
-
-    Some(true)
 }

@@ -1,18 +1,19 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{HashMap},
     usize,
 };
 
-mod program_tag;
+pub mod program_tag;
+pub use program_tag::{ClassType, ProgramTag};
+
 mod read_imports;
-use program_tag::{ClassType, ProgramTag};
 use read_imports::Import;
 
 use crate::tag_entry::{ClassEntry, FunctionEntry, ObjectEntry, ScopeEntry};
 
 pub fn evaluate_all_hard_data<'a>(
     project_path: &String,
-    all_files: &'a HashSet<&'a String>,
+    all_files: &'a Vec<&'a String>,
     all_hard_data: HashMap<
         &'a String,
         (
@@ -22,7 +23,6 @@ pub fn evaluate_all_hard_data<'a>(
             Vec<ObjectEntry>,
         ),
     >,
-    progress_indication: impl Fn(&str, u8),
 ) -> (
     HashMap<usize, Vec<usize>>,
     HashMap<usize, Vec<ProgramTag>>,
@@ -99,8 +99,7 @@ pub fn evaluate_all_hard_data<'a>(
                 }
             });
 
-            let progress = ((f + 1) as f32 / all_files.len() as f32) * 100.0;
-            progress_indication("initial tags formatting", progress as u8);
+            // let progress = ((f + 1) as f32 / all_files.len() as f32) * 100.0;
         }
     }
 
@@ -139,8 +138,7 @@ pub fn evaluate_all_hard_data<'a>(
                 }
             });
 
-        let progress = ((f + 1) as f32 / all_files.len() as f32) * 100.0;
-        progress_indication("connecting classes", progress as u8);
+        // let progress = ((f + 1) as f32 / all_files.len() as f32) * 100.0;
     }
 
     // bake changes
@@ -227,9 +225,9 @@ pub fn jsonify_evaluated_data(
     return (imports, tags, children);
 }
 
-fn read_all_imports<'a>(
+pub fn read_all_imports<'a>(
     project_path: &String,
-    all_files: &'a HashSet<&'a String>,
+    all_files: &'a Vec<&'a String>,
 ) -> HashMap<usize, Vec<usize>> {
     let mut all_imports: HashMap<usize, Vec<usize>> = HashMap::new();
 
