@@ -1,14 +1,13 @@
-use serde::{Deserialize, Serialize};
+use serde::{Serialize};
 use std::collections::HashMap;
 use std::sync::Mutex;
 use lazy_static::lazy_static;
-use serde_json::json;
-
 use crate::tag_entry;
 use crate::evaluate_imports::{self, ProgramTag};
 use crate::intense_evaluation;
 use crate::intense_evaluation::StatefulClassConnection;
 use crate::tag_entry::{TagEntry, ScopeEntry, ClassEntry, FunctionEntry, ObjectEntry};
+// use serde_json::json;
 
 #[derive(Default, Serialize, Clone)]
 pub struct ProjectData {
@@ -35,9 +34,9 @@ pub fn set_project_data(data: ProjectData) {
     *PROJECT_DATA.lock().unwrap() = Some(data);
 }
 
-pub fn clear_project_data() {
-    *PROJECT_DATA.lock().unwrap() = None;
-}
+// pub fn clear_project_data() {
+//     *PROJECT_DATA.lock().unwrap() = None;
+// }
 
 pub async fn create_project_data(
 		project_path: String,
@@ -71,10 +70,10 @@ pub async fn create_project_data(
 			hard_data_refs,
 	);
 
-	let (imports_json, tags_json, children_json) =
-			evaluate_imports::jsonify_evaluated_data(&raw_imports, &all_tags, &children_tags);
+	// let (imports_json, tags_json, children_json) =
+	// 		evaluate_imports::jsonify_evaluated_data(&raw_imports, &all_tags, &children_tags);
 
-	let project_hierarchy = json!([all_files, imports_json, tags_json, children_json]);
+	// let project_hierarchy = json!([all_files, imports_json, tags_json, children_json]);
 
 	println!("\n\n------ intense extract ------\n\n");
 	let all_files_refs = all_files.iter().collect::<Vec<&String>>();
@@ -82,11 +81,11 @@ pub async fn create_project_data(
 			intense_evaluation::evaluate(&project_path, &all_files_refs);
 
 	// Serialize data
-	let intense_data_json = json!({
-			"custom_classes": custom_classes,
-			"accessible_scopes": accessible_scopes,
-			"scoped_connectable_s": scoped_connectable_s,
-	});
+	// let intense_data_json = json!({
+	// 		"custom_classes": custom_classes,
+	// 		"accessible_scopes": accessible_scopes,
+	// 		"scoped_connectable_s": scoped_connectable_s,
+	// });
 
 	//
 	ProjectData {

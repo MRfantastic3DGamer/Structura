@@ -130,9 +130,9 @@ pub async fn get_all_hard_data<'a>(
     ),
 > {
     let mut all_data = HashMap::new();
-    let total_files = all_files.len(); // Get the total number of files only once
+    // let total_files = all_files.len(); // Get the total number of files only once
 
-    for (f, file_path) in all_files.iter().enumerate() {
+    for (_f, file_path) in all_files.iter().enumerate() {
         let mut tags: Vec<&TagEntry> = Vec::new();
         for t in all_tags {
             if t.file_name == **file_path {
@@ -144,7 +144,7 @@ pub async fn get_all_hard_data<'a>(
         let file_data = file_walk(file_path, &tags);
         all_data.insert(*file_path, file_data);
 
-        let progress = ((f + 1) as f32 / total_files as f32) * 100.0;
+        // let progress = ((f + 1) as f32 / total_files as f32) * 100.0;
     }
 
     all_data

@@ -232,6 +232,21 @@ function StructureDiagram() {
     }, [allTags]);
 
 
+    const sendQuery = async () => {
+        try {
+            const result = await invoke<string>(
+                'process_query_with_files',
+                {
+                    query: "create a class named snake with reptile as parent"
+                }
+            );
+            console.log("Ollama Response:", result);
+        } catch (error) {
+            console.error("Error processing query:", error);
+            setD(`Error processing query: ${error}`);
+        }
+    }
+
     const generateTags = async () => {
         if (projectPath) {
             try {
@@ -355,6 +370,7 @@ function StructureDiagram() {
                 <button onClick={generateTags} style={{ marginRight: "10px", fontSize: "16px" }} title="Generate Tags">⚙️</button>
                 <button onClick={connect_objects_methods} style={{ marginRight: "10px", fontSize: "16px" }} title="Connect Objects and Methods">🔗</button>
                 <button onClick={downloadHtmlFile} style={{ fontSize: "16px" }} title="Download HTML">⬇️</button>
+                <button onClick={sendQuery} style={{ fontSize: "16px" }} title="Test Query">Test Query</button>
             </div>
 
             <iframe

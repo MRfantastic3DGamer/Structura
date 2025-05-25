@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{HashMap},
     usize,
 };
 
@@ -99,7 +99,7 @@ pub fn evaluate_all_hard_data<'a>(
                 }
             });
 
-            let progress = ((f + 1) as f32 / all_files.len() as f32) * 100.0;
+            // let progress = ((f + 1) as f32 / all_files.len() as f32) * 100.0;
         }
     }
 
@@ -138,7 +138,7 @@ pub fn evaluate_all_hard_data<'a>(
                 }
             });
 
-        let progress = ((f + 1) as f32 / all_files.len() as f32) * 100.0;
+        // let progress = ((f + 1) as f32 / all_files.len() as f32) * 100.0;
     }
 
     // bake changes

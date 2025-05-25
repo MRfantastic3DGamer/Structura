@@ -1,5 +1,5 @@
 use serde_json::json;
-use std::str;
+use std::{path::PathBuf, str};
 use tauri::Runtime;
 
 mod data;
@@ -7,6 +7,7 @@ mod project_data;
 mod evaluate_imports;
 mod intense_evaluation;
 mod tag_entry;
+mod use_llama;
 
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #[cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
@@ -27,9 +28,9 @@ async fn request_project_structure<R: Runtime>(
     tags_path: String,
     window: tauri::Window<R>,
 ) {
-    let emit_process_progress_status = |key: &str, progress: u8| {
-        window.emit("progress", json!((key, progress))).unwrap();
-    };
+    // let emit_process_progress_status = |key: &str, progress: u8| {
+    //     window.emit("progress", json!((key, progress))).unwrap();
+    // };
 
     let project_data = match project_data::get_project_data() {
         Some(data) => data,
@@ -101,6 +102,39 @@ fn save_project_data_flow(_tags_path: &str) {}
 fn del_project_data_flow(_tags_path: &str) {}
 // endregion interface
 
+// region AI commands
+#[tauri::command]
+async fn generate_class<R: Runtime>(
+    query: String,
+    file_paths: Vec<String>,
+    app: tauri::AppHandle<R>,
+    window: tauri::Window<R>,
+) -> Result<(), String> {
+    Ok(())
+}
+
+#[tauri::command]
+fn process_query_with_files(
+    query: String
+) -> Result<String, String> {
+    println!("processing query with files...");
+    println!("Received query: {}", query);
+    // println!("Received file paths: {:?}", file_paths);
+
+    match use_llama::query_ollama(&query) {
+        Ok(response) => {
+            println!("Response from Ollama:\n{}", response);
+            Ok(response)
+        },
+        Err(err) => {
+            eprintln!("Error querying Ollama: {}", err);
+            Err(format!("Error: {}", err))
+        }
+    }
+}
+// endregion AI commands
+
+
 #[tauri::command]
 async fn submit_query<R: Runtime>(
     query: String,
@@ -138,7 +172,8 @@ fn main() {
             request_project_data_flow,
             save_project_data_flow,
             del_project_data_flow,
-            submit_query
+            submit_query,
+            process_query_with_files
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
