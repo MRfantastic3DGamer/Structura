@@ -34,7 +34,7 @@ function StructureDiagram() {
     const [accessibleScopes, setAccessibleScopes] = useState<Map<number, Map<number, [number, number][]>>>(new Map());
     const [scopedConnectable, setScopedConnectable] = useState<Map<number, Map<number, Map<string, any>>>>(new Map());
     const [html, setHtml] = useState<string>("")
-    const [debug, setDebug] = useState<string>("");
+    const [links, setLinks] = useState([]);
 
     interface Node {
         id: string;
@@ -234,18 +234,20 @@ function StructureDiagram() {
 
     const sendQuery = async () => {
         try {
-            const result = await invoke<string>(
-                'process_query_with_files',
-                {
-                    query: "create a class named snake with reptile as parent"
-                }
-            );
+            const payload = JSON.stringify({
+            query: "create a class named snake with reptile as parent",
+            context_files: [0, 1, 2, 3, 4],
+            });
+
+            const result = await invoke<string>("process_query_with_files", {
+            payload,
+            });
+
             console.log("Ollama Response:", result);
         } catch (error) {
             console.error("Error processing query:", error);
-            setD(`Error processing query: ${error}`);
         }
-    }
+    };
 
     const generateTags = async () => {
         if (projectPath) {
@@ -275,7 +277,6 @@ function StructureDiagram() {
             // { source: 3, target: 4 }
         ];
 
-        var debug = "";
         nodes.forEach((node, nodeIdx) => {
             const [nf, ni] = node.id.split('-');
             const classTag = allTags.get(Number(nf))[Number(ni)].Class;
@@ -287,14 +288,12 @@ function StructureDiagram() {
                 }
             });
         })
-        setDebug(debug);
         const updatedHtmlContent = rawHtml
             .replace("@NODES", JSON.stringify(nodes, null, 2))
             .replace("@LINKS", JSON.stringify(newLinks, null, 2));
 
         setHtml(updatedHtmlContent);
     }, [nodes]);
-
 
     const downloadHtmlFile = () => {
         const blob = new Blob([html], { type: "text/html" });
@@ -370,7 +369,7 @@ function StructureDiagram() {
                 <button onClick={generateTags} style={{ marginRight: "10px", fontSize: "16px" }} title="Generate Tags">⚙️</button>
                 <button onClick={connect_objects_methods} style={{ marginRight: "10px", fontSize: "16px" }} title="Connect Objects and Methods">🔗</button>
                 <button onClick={downloadHtmlFile} style={{ fontSize: "16px" }} title="Download HTML">⬇️</button>
-                <button onClick={sendQuery} style={{ fontSize: "16px" }} title="Test Query">Test Query</button>
+                <button onClick={sendQuery} style={{ fontSize: "16px" }} title="test query">test query</button>
             </div>
 
             <iframe
@@ -387,14 +386,6 @@ function StructureDiagram() {
                 }}
                 title="Rendered HTML"
             />
-
-            {/* <p>
-                <strong>allTags:</strong> {JSON.stringify(Array.from(allTags.entries()), null, 2)}
-            </p>
-
-            <p>
-                <strong>Debug:</strong> {debug}
-            </p> */}
         </div>
     );
 }

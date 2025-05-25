@@ -113,25 +113,75 @@ async fn generate_class<R: Runtime>(
     Ok(())
 }
 
-#[tauri::command]
-fn process_query_with_files(
-    query: String
-) -> Result<String, String> {
-    println!("processing query with files...");
-    println!("Received query: {}", query);
-    // println!("Received file paths: {:?}", file_paths);
+use serde::Deserialize;
 
-    match use_llama::query_ollama(&query) {
-        Ok(response) => {
-            println!("Response from Ollama:\n{}", response);
-            Ok(response)
-        },
-        Err(err) => {
-            eprintln!("Error querying Ollama: {}", err);
-            Err(format!("Error: {}", err))
-        }
-    }
+#[derive(Deserialize)]
+struct QueryPayload {
+    query: String,
+    context_files: Vec<usize>,
 }
+
+#[tauri::command]
+async fn process_query_with_files(payload: String) -> Result<String, String> {
+    println!("Received payload: {}", payload);
+
+    let parsed: QueryPayload = serde_json::from_str(&payload)
+        .map_err(|e| format!("Failed to parse payload: {}", e))?;
+
+
+    let context_files: Vec<usize> = parsed.context_files;
+
+    let project_data = project_data::get_project_data().ok_or("Project data not initialized")?;
+
+    let file_paths: Vec<String> = context_files
+    .iter()
+    .filter_map(|&i| project_data.all_files.get(i).cloned())
+    .collect();
+
+    println!("query: {}", parsed.query);
+    println!("context_files_indexes: {:?}", context_files);
+    println!("context files: {:?}", file_paths);
+
+    let file_refs: Vec<&str> = file_paths.iter().map(String::as_str).collect();
+
+    let res = use_llama::query_ollama(&parsed.query, &file_refs).await
+        .map_err(|e| format!("Error querying Ollama: {}", e));
+
+    // Simulated logic:
+    Ok(format!(
+        "Result: {:?}",
+        res
+    ))
+}
+
+
+// #[tauri::command]
+// async fn process_query_with_files<R: Runtime>(
+//     query: String,
+//     context_files_str: String,
+//     window: tauri::Window<R>,
+// ) -> Result<String, String> {
+//     println!("processing query with files...");
+//     println!("Received query: {}", query);
+//     println!("Received serialized file indices: {}", context_files_str);
+
+//     let context_files: Vec<usize> = serde_json::from_str(&context_files_str)
+//         .map_err(|e| format!("Failed to parse file indices: {}", e))?;
+
+//     println!("Deserialized indices: {:?}", context_files);
+
+//     let project_data = project_data::get_project_data().ok_or("Project data not initialized")?;
+
+//     let file_paths: Vec<String> = context_files
+//         .iter()
+//         .filter_map(|&i| project_data.all_files.get(i).cloned())
+//         .collect();
+
+//     let file_refs: Vec<&str> = file_paths.iter().map(String::as_str).collect();
+
+//     use_llama::query_ollama(&query, &file_refs)
+//         .map_err(|e| format!("Error querying Ollama: {}", e))
+// }
 // endregion AI commands
 
 
