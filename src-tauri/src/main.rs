@@ -1,6 +1,7 @@
 use serde_json::json;
 use std::{path::PathBuf, str};
 use tauri::Runtime;
+use tokio::time::{sleep, Duration};
 
 mod data;
 mod project_data;
@@ -8,6 +9,7 @@ mod evaluate_imports;
 mod intense_evaluation;
 mod tag_entry;
 mod use_llama;
+mod io_operations;
 
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #[cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
@@ -31,6 +33,8 @@ async fn request_project_structure<R: Runtime>(
     // let emit_process_progress_status = |key: &str, progress: u8| {
     //     window.emit("progress", json!((key, progress))).unwrap();
     // };
+
+    project_data::clear_project_data();
 
     let project_data = match project_data::get_project_data() {
         Some(data) => data,
@@ -122,7 +126,10 @@ struct QueryPayload {
 }
 
 #[tauri::command]
-async fn process_query_with_files(payload: String) -> Result<String, String> {
+async fn process_query_with_files<R: Runtime>(
+    payload: String,
+    window: tauri::Window<R>
+) -> Result<String, String> {
     println!("Received payload: {}", payload);
 
     let parsed: QueryPayload = serde_json::from_str(&payload)
@@ -147,9 +154,33 @@ async fn process_query_with_files(payload: String) -> Result<String, String> {
     let res = use_llama::query_ollama(&parsed.query, &file_refs).await
         .map_err(|e| format!("Error querying Ollama: {}", e));
 
+    let var_name = if let Ok(ref files) = res {
+        for file in files {
+            let mut abs_path = PathBuf::from(&file.filePath);
+            if abs_path.is_relative() {
+                let project_root = PathBuf::from(&project_data.project_path);
+                abs_path = project_root.join(&abs_path);
+            }
+            io_operations::write_text_to_file(
+                abs_path,
+                &file.fileContent,
+            ).await.map_err(|e| format!("Failed to write file: {}", e))?;
+        }
+    };
+
+    project_data::clear_project_data();
+
+    sleep(Duration::from_millis(1000)).await;
+
+    request_project_structure(
+        project_data.project_path.clone(),
+        "tags".to_string(),
+        window,
+    ).await;
+
     // Simulated logic:
     Ok(format!(
-        "Result: {:?}",
+        "Result: {:#?}",
         res
     ))
 }

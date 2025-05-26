@@ -235,7 +235,7 @@ function StructureDiagram() {
     const sendQuery = async () => {
         try {
             const payload = JSON.stringify({
-            query: "create a class named snake with reptile as parent",
+            query: "create 2 classes for different types of reptiles and set there parent as reptile class",
             context_files: [0, 1, 2, 3, 4],
             });
 

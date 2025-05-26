@@ -11,15 +11,16 @@ use crate::tag_entry::{TagEntry, ScopeEntry, ClassEntry, FunctionEntry, ObjectEn
 
 #[derive(Default, Serialize, Clone)]
 pub struct ProjectData {
-    pub tags_data: Vec<TagEntry>,
-    pub all_files: Vec<String>,
-    pub hard_data: HashMap<String, (Vec<ScopeEntry>, Vec<ClassEntry>, Vec<FunctionEntry>, Vec<ObjectEntry>)>,
-    pub raw_imports: HashMap<usize, Vec<usize>>,
-    pub all_tags: HashMap<usize, Vec<ProgramTag>>,
-    pub children_tags: HashMap<(usize, usize), Vec<(usize, usize)>>,
-    pub custom_classes: HashMap<usize, Vec<(String, usize)>>,
-    pub accessible_scopes: HashMap<usize, HashMap<usize, Vec<(usize, usize)>>>,
-    pub scoped_connectables: HashMap<usize, HashMap<usize, HashMap<String, StatefulClassConnection>>>,
+	pub project_path: String,
+  pub tags_data: Vec<TagEntry>,
+  pub all_files: Vec<String>,
+  pub hard_data: HashMap<String, (Vec<ScopeEntry>, Vec<ClassEntry>, Vec<FunctionEntry>, Vec<ObjectEntry>)>,
+  pub raw_imports: HashMap<usize, Vec<usize>>,
+  pub all_tags: HashMap<usize, Vec<ProgramTag>>,
+  pub children_tags: HashMap<(usize, usize), Vec<(usize, usize)>>,
+  pub custom_classes: HashMap<usize, Vec<(String, usize)>>,
+  pub accessible_scopes: HashMap<usize, HashMap<usize, Vec<(usize, usize)>>>,
+  pub scoped_connectables: HashMap<usize, HashMap<usize, HashMap<String, StatefulClassConnection>>>,
 }
 
 lazy_static! {
@@ -34,9 +35,9 @@ pub fn set_project_data(data: ProjectData) {
     *PROJECT_DATA.lock().unwrap() = Some(data);
 }
 
-// pub fn clear_project_data() {
-//     *PROJECT_DATA.lock().unwrap() = None;
-// }
+pub fn clear_project_data() {
+    *PROJECT_DATA.lock().unwrap() = None;
+}
 
 pub async fn create_project_data(
 		project_path: String,
@@ -89,6 +90,7 @@ pub async fn create_project_data(
 
 	//
 	ProjectData {
+		project_path,
 		tags_data: tags_result,
 		all_files,
 		hard_data,
