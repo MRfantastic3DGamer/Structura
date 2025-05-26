@@ -473,6 +473,23 @@ function StructureDiagram() {
       const levelNodes: { [key: number]: string[] } = {};
       const nodeLevels: { [key: string]: number } = {};
 
+    const sendQuery = async () => {
+        try {
+            const payload = JSON.stringify({
+            query: "create 2 classes for different types of reptiles and set there parent as reptile class",
+            context_files: [0, 1, 2, 3, 4],
+            });
+
+            const result = await invoke<string>("process_query_with_files", {
+            payload,
+            });
+
+            console.log("Ollama Response:", result);
+        } catch (error) {
+            console.error("Error processing query:", error);
+        }
+    };
+
       // Assign levels to nodes using BFS
       const assignLevels = (startNode: string, level: number) => {
         if (nodeLevels[startNode] !== undefined) return;
