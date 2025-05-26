@@ -1,70 +1,160 @@
-use reqwest::blocking::Client;
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
+use std::fs;
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 struct OllamaRequest<'a> {
     model: &'a str,
     prompt: &'a str,
     stream: bool,
 }
 
-#[derive(Deserialize)]
-struct OllamaResponse {
-    response: String,
-    done: Option<bool>,
+#[derive(Debug, Deserialize)]
+pub struct LlamaOuterResponse {
+    response: String, // This is actually a JSON string
+    done: bool,
 }
 
-fn build_structured_prompt(user_query: &str) -> String {
+#[derive(Debug, Deserialize)]
+pub struct File {
+    className: String,
+    pub filePath: String,
+    pub fileContent: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ParsedResponse {
+    pub files: Vec<File>,
+}
+
+fn build_structured_files_context(
+	context_files: &Vec<&str>,
+) -> String {
+
+	#[derive(Serialize)]
+	struct FileContext<'a> {
+		filePath: &'a str,
+		fileContent: String,
+	}
+
+	let mut files = Vec::new();
+
+	for file in context_files {
+		let file_path = file.clone();
+		let content = fs::read_to_string(file).unwrap_or_else(|_| "".to_string());
+		files.push(FileContext {
+			filePath: file_path,
+			fileContent: content,
+		});
+	}
+
+	serde_json::to_string(&files).unwrap_or_else(|_| "[]".to_string())
+}
+
+fn build_structured_file_gen_prompt(
+	user_query: &str,
+	context: &str,
+) -> String {
     format!(
         r#"
-You are a helpful AI assistant for a code generation app.
+You are a helpful AI assistant for code file generation.
+Your task is to use the input natural language query, along with the provided code file context, to generate new C++ class files in JSON format.
 
-Your task is to parse natural language queries into structured JSON instructions for generating cpp files.
-
+### Context
+{}
 ### Input
 {}
 
 ### Output Format (JSON)
 {{
-  "className": "ClassName",
-  "filePath": "filePath for this class",
-  "fileContent": "full fill content",
+	"files": [
+		{{
+			"className": "Class1",
+            "filePath": "filePath for Class1",
+            "fileContent": "full fill text for this class file"
+		}},
+	]
 }}
 
-Respond ONLY with valid JSON and nothing else. class Name should contain the name of the class that is generated, filePath should contain the path where the class is saved, and fileContent should contain the full content of the file and nothing more.
-        "#,
+### Rules
+- Each `className` must appear in its own file.
+- Absolutely DO NOT put more than one class in the same file.
+- The `filePath` must be unique for each file.
+- The `filePath` should follow this pattern: `src/ClassName.cpp`.
+- Do NOT reuse any file paths from the context.
+- Only respond with VALID JSON, and nothing else.
+
+Your response will be parsed and written directly to disk, so format correctness is critical.
+"#,
+		context,
         user_query
     )
 }
 
 /// Sends a prompt to a local Ollama model and returns the full response.
-pub fn query_ollama(prompt: &str) -> Result<String, Box<dyn Error>> {
-	let client = Client::new();
 
-  let formatted_prompt = build_structured_prompt(prompt);
+pub async fn query_ollama(
+    prompt: &str,
+    context_files: &Vec<&str>,
+) -> Result<Vec<File>, Box<dyn Error>> {
+    let client = Client::new();
 
+    let context = build_structured_files_context(context_files);
+    let formatted_prompt = build_structured_file_gen_prompt(prompt, &context);
 
-	let body = OllamaRequest {
-			model: "gemma3:1b",
-			prompt: &formatted_prompt,
-			stream: false,
-	};
+    let body = OllamaRequest {
+        model: "codellama:7b",
+        prompt: &formatted_prompt,
+        stream: false,
+    };
 
-	let res = client
-			.post("http://192.168.229.214:2000/api/generate")
-			.json(&body)
-			.send()?;
+    println!("Sending request to Ollama with body: {:?}", body);
 
+    let res = client
+        .post("http://172.20.224.1:2000/api/generate")
+        .json(&body)
+        .send()
+        .await?;
 
-	if !res.status().is_success() {
-		return Err(format!("HTTP error: {}", res.status()).into());
-	}
-	println!("Response status: {}", res.status());
+    println!("llama Response: {:?}", res);
 
-	// Parse the JSON response
-	let parsed: OllamaResponse = res.json()?;
-	println!("Response text: {}", parsed.response);
+    if !res.status().is_success() {
+        return Err(format!("HTTP error: {}", res.status()).into());
+    }
 
-	Ok(parsed.response)
+    let llama_raw_response = res.text().await?;
+
+    // Step 1: Deserialize outer JSON
+    let outer: LlamaOuterResponse = match serde_json::from_str(&llama_raw_response) {
+        Ok(val) => val,
+        Err(e) => {
+            eprintln!("Failed to deserialize outer response: {}", e);
+            eprintln!("Raw response: {}", llama_raw_response);
+            return Err(Box::new(e));
+        }
+    };
+
+    // Step 2: Extract and clean the JSON portion from the inner response string
+    let json_start = outer.response.find('{');
+    if json_start.is_none() {
+        eprintln!("No JSON object found in inner response");
+        eprintln!("Inner response string: {}", outer.response);
+        return Err("No JSON object found in inner response".into());
+    }
+    let json_str = &outer.response[json_start.unwrap()..];
+
+    let inner: ParsedResponse = match serde_json::from_str(json_str) {
+        Ok(val) => val,
+        Err(e) => {
+            eprintln!("Failed to deserialize cleaned inner response: {}", e);
+            eprintln!("Cleaned inner response string: {}", json_str);
+            return Err(Box::new(e));
+        }
+    };
+
+    println!("{:#?}", inner);
+
+    Ok(inner.files)
 }
+
