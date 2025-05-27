@@ -5,6 +5,11 @@ import { invoke } from "@tauri-apps/api/tauri";
 import { listen } from "@tauri-apps/api/event";
 import rawHtml from "./Graph.html?raw";
 import {
+  Panel,
+  PanelGroup,
+  PanelResizeHandle
+} from "react-resizable-panels";
+import {
   ReactFlow,
   Controls,
   Background,
@@ -110,6 +115,7 @@ function StructureDiagram() {
   const [debugLogs, setDebugLogs] = useState<Map<string, string>>(new Map());
   const [progress, setProgress] = useState<Map<string, number>>(new Map());
   const [allFiles, setAllFiles] = useState<Set<string>>(new Set());
+  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [allImports, setAllImports] = useState<Map<number, number[]>>(
     new Map()
   );
@@ -130,6 +136,11 @@ function StructureDiagram() {
   const [debug, setDebug] = useState<string>("");
   const [rfNodes, setRfNodes] = useState<RFNode[]>([]);
   const [rfEdges, setRfEdges] = useState<Edge[]>([]);
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [Query, setQuery] = useState("");
+
+
   interface Node {
     id: string;
     name: string;
@@ -140,12 +151,6 @@ function StructureDiagram() {
   }
 
   const [nodes, setNodes] = useState<Node[]>([]);
-
-  // const [debug, setDebug] = useState<any>();
-
-  // const getTag = (key: TagKey) => {
-  //     return (allTags.get(key[0]) as ProgramTag[])[key[1]];
-  // }
 
   useEffect(() => {
     const progress_listen = listen("progress", (event) => {
@@ -355,15 +360,32 @@ function StructureDiagram() {
     connect_objects_methods();
   }, [allTags]);
 
+  const [queryLoading, setQueryLoading] = useState(false);
+
   const sendQuery = async () => {
+    setQueryLoading(true);
     try {
-      const result = await invoke<string>("process_query_with_files", {
-        query: "create a class named snake with reptile as parent",
+      const context_files = Array.from(selectedFiles).map(file =>
+        Array.from(allFiles).indexOf(file)
+      ).filter(idx => idx !== -1);
+
+      const payload = JSON.stringify({
+        query: Query,
+        context_files,
       });
+
+      setSelectedFiles(new Set());
+      setQuery("");
+
+      const result = await invoke<string>("process_query_with_files", {
+        payload,
+      });
+
       console.log("Ollama Response:", result);
     } catch (error) {
       console.error("Error processing query:", error);
-      setD(`Error processing query: ${error}`);
+    } finally {
+      setQueryLoading(false);
     }
   };
 
@@ -473,23 +495,6 @@ function StructureDiagram() {
       const levelNodes: { [key: number]: string[] } = {};
       const nodeLevels: { [key: string]: number } = {};
 
-    const sendQuery = async () => {
-        try {
-            const payload = JSON.stringify({
-            query: "create 2 classes for different types of reptiles and set there parent as reptile class",
-            context_files: [0, 1, 2, 3, 4],
-            });
-
-            const result = await invoke<string>("process_query_with_files", {
-            payload,
-            });
-
-            console.log("Ollama Response:", result);
-        } catch (error) {
-            console.error("Error processing query:", error);
-        }
-    };
-
       // Assign levels to nodes using BFS
       const assignLevels = (startNode: string, level: number) => {
         if (nodeLevels[startNode] !== undefined) return;
@@ -534,30 +539,17 @@ function StructureDiagram() {
     setRfEdges(convertedEdges);
   }, [nodes]);
 
-  const downloadHtmlFile = () => {
-    const blob = new Blob([html], { type: "text/html" });
-    const url = URL.createObjectURL(blob);
-
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "nodes-data.html";
-    link.click();
-
-    URL.revokeObjectURL(url);
-  };
-
   return (
-    <div>
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
+      {/* Top Bar - fixed height */}
       <div
         style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          width: "100%",
+          height: "60px",
           backgroundColor: "#f5f5f5",
           padding: "10px",
           boxShadow: "0px 2px 5px rgba(0, 0, 0, 0.1)",
-          zIndex: 10,
+          display: "flex",
+          alignItems: "center",
         }}
       >
         <h3 style={{ display: "inline-block", marginRight: "20px" }}>
@@ -571,20 +563,6 @@ function StructureDiagram() {
           ⚙️
         </button>
         <button
-          onClick={connect_objects_methods}
-          style={{ marginRight: "10px", fontSize: "16px" }}
-          title="Connect Objects and Methods"
-        >
-          🔗
-        </button>
-        <button
-          onClick={downloadHtmlFile}
-          style={{ fontSize: "16px" }}
-          title="Download HTML"
-        >
-          ⬇️
-        </button>
-        <button
           onClick={sendQuery}
           style={{ fontSize: "16px" }}
           title="Test Query"
@@ -592,28 +570,314 @@ function StructureDiagram() {
           Test Query
         </button>
       </div>
-      <div
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          width: "100%",
-          height: "100%",
-          zIndex: 0,
-        }}
-      >
-        <ReactFlow
-          nodes={rfNodes}
-          edges={rfEdges}
-          nodeTypes={nodeTypes}
-          onNodesChange={(changes) =>
-            setRfNodes((nds) => applyNodeChanges(changes, nds))
-          }
-          fitView
-        >
-          <Background />
-          <Controls />
-        </ReactFlow>
+
+      {/* Main Content Area - takes remaining space */}
+      <div style={{ flex: 1, display: "flex" }}>
+        <PanelGroup direction="horizontal">
+          {/* Main ReactFlow Panel */}
+          <Panel defaultSize={70} minSize={50}>
+            <div style={{ width: "100%", height: "100%", position: "relative" }}>
+              <ReactFlow
+                nodes={rfNodes}
+                edges={rfEdges}
+                nodeTypes={nodeTypes}
+                onNodesChange={(changes) =>
+                  setRfNodes((nds) => applyNodeChanges(changes, nds))
+                }
+                fitView
+              >
+                <Background />
+                <Controls />
+              </ReactFlow>
+            </div>
+          </Panel>
+
+          {/* Resize Handle */}
+          <PanelResizeHandle style={{ width: "10px", background: "#f0f0f0" }} />
+
+          {/* Right Side Panel */}
+          <Panel defaultSize={30} minSize={20}>
+            <div style={{
+              height: "100%",
+              padding: "15px",
+              overflow: "auto",
+              backgroundColor: "#222222",
+              borderLeft: "1px solid #e0e0e0",
+              display: "flex",
+              flexDirection: "column",
+              gap: "15px",
+            }}>
+              <h3 style={{ margin: "0 0 4px 0", color: "white" }}>File Selection</h3>
+
+              {/* Add Files Button */}
+              <button
+                onClick={() => setShowSearch(prev => !prev)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "8px 16px",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  transition: "all 0.2s",
+                  width: "fit-content",
+                  marginBottom: "10px",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+                  ":hover": {
+                    backgroundColor: "#4f46e5",
+                    transform: "translateY(-1px)"
+                  }
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+                Add Files
+              </button>
+
+              {/* Search Field (appears when Add is clicked) */}
+              {showSearch && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                  <input
+                    type="text"
+                    placeholder="Search files..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "10px 15px",
+                      borderRadius: "6px",
+                      border: "1px solid #ddd",
+                      fontSize: "14px",
+                      boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                      transition: "all 0.2s",
+                      outline: "none",
+                      ":focus": {
+                        borderColor: "#6366f1",
+                        boxShadow: "0 0 0 2px rgba(99, 102, 241, 0.2)"
+                      }
+                    }}
+                  />
+
+                  {/* Search Results as Chips */}
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                    {Array.from(allFiles)
+                      .filter(file => file.toLowerCase().includes(searchQuery.toLowerCase()))
+                      .map((file) => (
+                        <div
+                          key={file}
+                          onClick={() => {
+                            setSelectedFiles(prev => {
+                              const newSet = new Set(prev);
+                              if (newSet.has(file)) {
+                                newSet.delete(file);
+                              } else {
+                                newSet.add(file);
+                              }
+                              return newSet;
+                            });
+                          }}
+                          style={{
+                            backgroundColor: selectedFiles.has(file) ? "#6366f1" : "#222222",
+                            color: selectedFiles.has(file) ? "white" : "#6366f1",
+                            padding: "6px 12px",
+                            borderRadius: "20px",
+                            fontSize: "14px",
+                            cursor: "pointer",
+                            transition: "all 0.2s",
+                            border: selectedFiles.has(file) ? "1px solid #6366f1" : "1px solid #333333",
+                            ":hover": {
+                              backgroundColor: selectedFiles.has(file) ? "#4f46e5" : "#e0e7ff"
+                            }
+                          }}
+                        >
+                          {file.split(/[\\/]/).pop()}
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Selected Files Chips */}
+              <div style={{ marginTop: "20px" }}>
+                <h4 style={{ margin: "0 0 10px 0", color: "#555" }}>Selected Files</h4>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                  {Array.from(selectedFiles).map((file) => (
+                    <div
+                      key={file}
+                      style={{
+                        backgroundColor: "#f0f4ff",
+                        color: "#6366f1",
+                        padding: "6px 12px",
+                        borderRadius: "20px",
+                        fontSize: "14px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        transition: "all 0.2s",
+                        border: "1px solid #dbe4ff"
+                      }}
+                    >
+                      <span style={{
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        maxWidth: "150px"
+                      }}>
+                        {file.split(/[\\/]/).pop()}
+                      </span>
+                      <button
+                        onClick={() => {
+                          setSelectedFiles(prev => {
+                            const newSet = new Set(prev);
+                            newSet.delete(file);
+                            return newSet;
+                          });
+                        }}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: "inherit",
+                          cursor: "pointer",
+                          padding: "0",
+                          display: "flex",
+                          alignItems: "center",
+                          ":hover": {
+                            color: "#4f46e5"
+                          }
+                        }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Query section */}
+              <div style={{ marginTop: "20px" }}>
+                <h4 style={{ margin: "0 0 10px 0", color: "#555" }}>Query</h4>
+                <textarea
+                  rows={5}
+                  placeholder="Type your query here..."
+                  style={{
+                    width: "90%",
+                    padding: "12px 16px",
+                    borderRadius: "8px",
+                    border: "1.5px solid #333",
+                    background: "#18181b",
+                    color: "#f3f4f6",
+                    fontSize: "15px",
+                    fontFamily: "inherit",
+                    resize: "vertical",
+                    outline: "none",
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                    transition: "border-color 0.2s, box-shadow 0.2s",
+                  }}
+                  onFocus={e => (e.currentTarget.style.borderColor = "#6366f1")}
+                  onBlur={e => (e.currentTarget.style.borderColor = "#333")}
+                  onChange={(e) => setQuery(e.target.value)}
+                />
+              </div>
+
+              {/* Submit button */}
+                <button
+                onClick={sendQuery}
+                disabled={queryLoading}
+                style={{
+                  width: "100%",
+                  padding: "18px 0",
+                  marginTop: "18px",
+                  background: "linear-gradient(90deg, #6366f1 0%, #4f46e5 100%)",
+                  color: queryLoading ? "#bbb" : "#fff",
+                  fontSize: "1.25rem",
+                  fontWeight: 600,
+                  border: "none",
+                  borderRadius: "12px",
+                  boxShadow: "0 4px 16px rgba(99,102,241,0.15)",
+                  cursor: queryLoading ? "not-allowed" : "pointer",
+                  letterSpacing: "0.03em",
+                  transition: "background 0.2s, transform 0.1s",
+                  outline: "none",
+                  position: "relative",
+                  opacity: queryLoading ? 0.85 : 1,
+                  pointerEvents: queryLoading ? "none" : "auto",
+                }}
+                onMouseDown={e => {
+                  if (!queryLoading) e.currentTarget.style.transform = "scale(0.97)";
+                }}
+                onMouseUp={e => {
+                  if (!queryLoading) e.currentTarget.style.transform = "scale(1)";
+                }}
+                >
+                {queryLoading && (
+                  <span
+                  style={{
+                    position: "absolute",
+                    left: "50%",
+                    top: "50%",
+                    transform: "translate(-50%, -50%)",
+                    width: "2.5em",
+                    height: "2.5em",
+                    zIndex: 2,
+                    pointerEvents: "none",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                  >
+                  <svg
+                    width="2.5em"
+                    height="2.5em"
+                    viewBox="0 0 44 44"
+                    style={{
+                    display: "block",
+                    animation: "spin 1s linear infinite",
+                    }}
+                  >
+                    <defs>
+                    <linearGradient id="spinner-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#6366f1" />
+                      <stop offset="50%" stopColor="#4f46e5" />
+                      <stop offset="100%" stopColor="#f59e42" />
+                    </linearGradient>
+                    </defs>
+                    <circle
+                    cx="22"
+                    cy="22"
+                    r="18"
+                    fill="none"
+                    stroke="url(#spinner-gradient)"
+                    strokeWidth="5"
+                    strokeDasharray="90 60"
+                    strokeLinecap="round"
+                    />
+                  </svg>
+                  <style>
+                    {`
+                    @keyframes spin {
+                      100% { transform: rotate(360deg); }
+                    }
+                    `}
+                  </style>
+                  </span>
+                )}
+                <span style={{
+                  opacity: queryLoading ? 0.5 : 1,
+                  zIndex: 1,
+                  position: "relative",
+                }}>
+                  🚀 Run Query
+                </span>
+                </button>
+            </div>
+          </Panel>
+        </PanelGroup>
       </div>
     </div>
   );

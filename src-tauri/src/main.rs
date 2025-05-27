@@ -1,4 +1,5 @@
 use serde_json::json;
+use serde::Deserialize;
 use std::{path::PathBuf, str};
 use tauri::Runtime;
 use tokio::time::{sleep, Duration};
@@ -97,13 +98,23 @@ async fn request_project_structure<R: Runtime>(
 fn save_project_structure(_tags_path: &str) {}
 #[tauri::command]
 fn del_project_structure(_tags_path: &str) {}
-
 #[tauri::command]
 fn request_project_data_flow(_tags_path: &str) {}
 #[tauri::command]
 fn save_project_data_flow(_tags_path: &str) {}
 #[tauri::command]
 fn del_project_data_flow(_tags_path: &str) {}
+#[tauri::command]
+async fn read_file_content_by_index(index: usize) -> Result<String, String> {
+    let project_data = project_data::get_project_data().ok_or("Project data not initialized")?;
+    let file_path = project_data
+        .all_files
+        .get(index)
+        .ok_or("File index out of bounds")?;
+    io_operations::read_text_from_file(file_path)
+        .await
+        .map_err(|e| format!("Failed to read file: {}", e))
+}
 // endregion interface
 
 // region AI commands
@@ -117,7 +128,6 @@ async fn generate_class<R: Runtime>(
     Ok(())
 }
 
-use serde::Deserialize;
 
 #[derive(Deserialize)]
 struct QueryPayload {
@@ -154,7 +164,7 @@ async fn process_query_with_files<R: Runtime>(
     let res = use_llama::query_ollama(&parsed.query, &file_refs).await
         .map_err(|e| format!("Error querying Ollama: {}", e));
 
-    let var_name = if let Ok(ref files) = res {
+    if let Ok(ref files) = res {
         for file in files {
             let mut abs_path = PathBuf::from(&file.filePath);
             if abs_path.is_relative() {
@@ -184,35 +194,6 @@ async fn process_query_with_files<R: Runtime>(
         res
     ))
 }
-
-
-// #[tauri::command]
-// async fn process_query_with_files<R: Runtime>(
-//     query: String,
-//     context_files_str: String,
-//     window: tauri::Window<R>,
-// ) -> Result<String, String> {
-//     println!("processing query with files...");
-//     println!("Received query: {}", query);
-//     println!("Received serialized file indices: {}", context_files_str);
-
-//     let context_files: Vec<usize> = serde_json::from_str(&context_files_str)
-//         .map_err(|e| format!("Failed to parse file indices: {}", e))?;
-
-//     println!("Deserialized indices: {:?}", context_files);
-
-//     let project_data = project_data::get_project_data().ok_or("Project data not initialized")?;
-
-//     let file_paths: Vec<String> = context_files
-//         .iter()
-//         .filter_map(|&i| project_data.all_files.get(i).cloned())
-//         .collect();
-
-//     let file_refs: Vec<&str> = file_paths.iter().map(String::as_str).collect();
-
-//     use_llama::query_ollama(&query, &file_refs)
-//         .map_err(|e| format!("Error querying Ollama: {}", e))
-// }
 // endregion AI commands
 
 
@@ -254,6 +235,7 @@ fn main() {
             save_project_data_flow,
             del_project_data_flow,
             submit_query,
+            read_file_content_by_index,
             process_query_with_files
         ])
         .run(tauri::generate_context!())

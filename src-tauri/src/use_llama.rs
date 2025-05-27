@@ -73,7 +73,7 @@ Your task is to use the input natural language query, along with the provided co
 			"className": "Class1",
             "filePath": "filePath for Class1",
             "fileContent": "full fill text for this class file"
-		}},
+		}}
 	]
 }}
 
@@ -82,6 +82,7 @@ Your task is to use the input natural language query, along with the provided co
 - Absolutely DO NOT put more than one class in the same file.
 - The `filePath` must be unique for each file.
 - The `filePath` should follow this pattern: `src/ClassName.cpp`.
+- Make sure to include the parent class files.
 - Do NOT reuse any file paths from the context.
 - Only respond with VALID JSON, and nothing else.
 
@@ -90,6 +91,12 @@ Your response will be parsed and written directly to disk, so format correctness
 		context,
         user_query
     )
+}
+
+fn remove_trailing_commas(json: &str) -> String {
+    // Remove trailing commas before } or ]
+    let re = regex::Regex::new(r",\s*([\]}])").unwrap();
+    re.replace_all(json, "$1").to_string()
 }
 
 /// Sends a prompt to a local Ollama model and returns the full response.
@@ -112,7 +119,7 @@ pub async fn query_ollama(
     println!("Sending request to Ollama with body: {:?}", body);
 
     let res = client
-        .post("http://172.20.224.1:2000/api/generate")
+        .post("http://192.168.91.214:2000/api/generate")
         .json(&body)
         .send()
         .await?;
@@ -144,11 +151,14 @@ pub async fn query_ollama(
     }
     let json_str = &outer.response[json_start.unwrap()..];
 
-    let inner: ParsedResponse = match serde_json::from_str(json_str) {
+    // Remove trailing commas before parsing
+    let cleaned_json = remove_trailing_commas(json_str);
+
+    let inner: ParsedResponse = match serde_json::from_str(&cleaned_json) {
         Ok(val) => val,
         Err(e) => {
             eprintln!("Failed to deserialize cleaned inner response: {}", e);
-            eprintln!("Cleaned inner response string: {}", json_str);
+            eprintln!("Cleaned inner response string: {}", cleaned_json);
             return Err(Box::new(e));
         }
     };
